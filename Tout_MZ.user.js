@@ -8,7 +8,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.3.0.50
+// @version     1.3.0.54
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -37,8 +37,12 @@
 
 try {
 var MZ_changeLog = [
-"V1.3.0.48 23/06/2020",
-"	Version provisoire de correction de la vue",
+"V1.3.0.54 28/08/2020",
+"	Supprime le déplacement de la page de vue au survol de la souris du titre \"INFORMATIONS\"",
+"V1.3.0.53 20/07/2020",
+"	Correction de la vue smartphone",
+"V1.3.0.51 23/06/2020",
+"	Correction de la vue",
 "V1.3.0.47 23/06/2020",
 "	Correction blessure",
 "V1.3.0.46 23/06/2020",
@@ -337,6 +341,8 @@ var MZ_changeLog = [
 /**********************************************************
 	À faire / propositions d'évolutions
 
+	H2P 08/07/2020
+*		dans la vue des minerais, ça devrait a priori afficher, sur base des formules de mountypedia, le nombre de carats de chaque pépite de minerai
 	Bireli-Gravos 08/12/2018
 		FAIT faire un warning si l'utilisateur a désactivé la case "Menu d'actions contextuelles" dans la fenêtre "limiter la vue"
 	breizhou13 20/12/2016
@@ -9374,6 +9380,13 @@ var MZ_EtatCdMs = {	// zone où sont stockées les variables "globales" pour la 
 	lastIndexDone: 0,
 	isCDMsRetrieved: false, // = si les CdM ont déjà été DL
 	listeCDM: [],
+	indexCellDist: -1,
+	indexCellActions: -1,
+	indexCellID: -1,
+	indexCellNivMZ: -1,
+	indexCellX: -1,
+	indexCellY: -1,
+	indexCellN: -1,
 	// Gère l'affichage en cascade des popups de CdM
 	yIndexCDM: 0,
 	tdWitdh: 110,
@@ -9456,19 +9469,19 @@ function getXxxPosition(xxx, i) {
 /* [functions] Récup données monstres */
 function getMonstreDistance(i) {
 	//debugMZ('getMonstreDistance, i=' + i + ', tr=' + MZ_EtatCdMs.tr_monstres[i].innerHTML);
-	return parseInt(MZ_EtatCdMs.tr_monstres[i].cells[0].textContent);
+	return parseInt(MZ_EtatCdMs.tr_monstres[i].cells[MZ_EtatCdMs.indexCellDist].textContent);
 }
 
 function getMonstreID(i) {
-	return Number(MZ_EtatCdMs.tr_monstres[i].cells[2].firstChild.nodeValue);
+	return Number(MZ_EtatCdMs.tr_monstres[i].cells[MZ_EtatCdMs.indexCellID].firstChild.nodeValue);
 }
 
 function getMonstreIDByTR(tr) {
-	return tr.cells[2].firstChild.nodeValue;
+	return tr.cells[MZ_EtatCdMs.indexCellID].firstChild.nodeValue;
 }
 
 function getMonstreLevelNode(i) {
-	return MZ_EtatCdMs.tr_monstres[i].cells[3];
+	return MZ_EtatCdMs.tr_monstres[i].cells[MZ_EtatCdMs.indexCellNivMZ];
 }
 
 function isMonstreLevelOutLimit(i, limitMin, limitMax) {
@@ -9514,11 +9527,10 @@ function getMonstreNomByTR(tr) {
 
 function getMonstrePosition(i) {
 	var tds = MZ_EtatCdMs.tr_monstres[i].childNodes;
-	var l = tds.length;
 	return [
-		parseInt(tds[l-3].textContent),
-		parseInt(tds[l-2].textContent),
-		parseInt(tds[l-1].textContent)
+		parseInt(tds[MZ_EtatCdMs.indexCellX].textContent),
+		parseInt(tds[MZ_EtatCdMs.indexCellY].textContent),
+		parseInt(tds[MZ_EtatCdMs.indexCellN].textContent)
 	];
 }
 
@@ -9764,6 +9776,7 @@ function recallCheckBox(chkbox, pref) {
 }
 
 function saveComboBox(cbb, pref) {
+	if (!cbb) return;
 	// Enregistre et retourne l'état d'une ComboBox
 	var opt = cbb.options[cbb.selectedIndex];
 	if (!opt) return;
@@ -9775,7 +9788,7 @@ function saveComboBox(cbb, pref) {
 function recallComboBox(cbb, pref) {
 	// Restitue l'état d'une ComboBox
 	var nb = MY_getValue(pref);
-	if(nb) cbb.value = nb;
+	if(nb && cbb) cbb.value = nb;
 	return nb;
 }
 
@@ -9976,8 +9989,7 @@ function set2DViewSystem() {
 function initialiseInfos() {
 	// DEBUG: prévoir désactivation complète du script si infoTab non trouvé
 	var
-		infoTab = document.getElementsByName('LimitViewForm')[0].
-			getElementsByTagName('table')[0],
+		infoTab = document.getElementById('infoTab'),
 		tbody = infoTab.tBodies[0],
 		thead = infoTab.createTHead(),
 		tr = appendTr(thead,'mh_tdtitre'),
@@ -9987,7 +9999,7 @@ function initialiseInfos() {
 	// Récupération de la position du joueur
 	try {
 		var strPos = document.evaluate(
-				".//li/b/text()[contains(.,'X = ')]",
+				".//b/text()[contains(.,'X = ') or contains(.,'X\u00A0=\u00A0')]",	// &nbsp; en vue smartphone
 				infoTab, null, 9, null
 			).singleNodeValue.nodeValue;
 		// ***INIT GLOBALE*** currentPosition
@@ -10002,16 +10014,20 @@ function initialiseInfos() {
 	try {
 		var
 			nodes = document.evaluate(
-				".//li/b/text()[contains(.,'horizontalement') "+
+				".//b/text()[contains(.,'horizontalement') "+
 				"or contains(.,'verticalement')]",
 				infoTab, null, 7, null
-			),
-			array = [];
-		for(var i=0 ; i<4 ; i++) {
+			);
+			var array = [];
+		for(var i=0 ; i<4 && i<nodes.snapshotLength ; i++) {
 			array.push(parseInt(nodes.snapshotItem(i).nodeValue));
 		}
 		// ***INIT GLOBALE*** porteeVue
 		porteeVue = array;
+		if (porteeVue.length < 4) {
+			porteeVue[2] = array[0];
+			porteeVue[3] = array[1];
+		}
 	} catch(e) {
 		window.console.error(traceStack(e, 'Vue Portées Vue non trouvée'));
 	}
@@ -10019,7 +10035,10 @@ function initialiseInfos() {
 	infoTab.id = 'infoTab'; // Pour scripts externes
 	tbody.id = 'corpsInfoTab';
 	tbody.rows[0].cells[0].colSpan = 2;
+	if (tbody.rows.length > 1) tbody.rows[1].cells[0].colSpan = 2;
 	td.colSpan = 3;
+	td.style.cursor = 'pointer';
+	/* quel intérêt de changer de className ? et ça fait bouger toute la frame d'un pixel ou deux, c'est désagréable
 	td.onmouseover = function() {
 		this.style.cursor = 'pointer';
 		this.className = 'mh_tdpage';
@@ -10027,6 +10046,7 @@ function initialiseInfos() {
 	td.onmouseout = function() {
 		this.className = 'mh_tdtitre';
 	};
+	*/
 	td.onclick = function() {
 		toggleTableauInfos(false);
 	};
@@ -10275,19 +10295,46 @@ function ajoutDesFiltres() {
 function insertLevelColumn() {
 	// Appelé dans le code attaché à la page de vue et au click/unclick de la checkbox
 
+	MZ_EtatCdMs.indexCellNivMZ = MZ_EtatCdMs.indexCellID + 1;	// la colonne des niveaux sera insérée après la colonne des ID
+	MZ_EtatCdMs.indexCellX += 1;	// et ça décale les colonnes suivantes
+	MZ_EtatCdMs.indexCellY += 1;
+	MZ_EtatCdMs.indexCellN += 1;
 	var td = insertThText(getMonstreLevelNode(0),'Niv.',false);
 	//td.width = 25;
 
+	/* plus de colgroup le 08/07/2020. Mais comme ça pourrait revenir, je laisse le bout de code en commentaire (Roule)
 	var eColGroup = getMonstreLevelNode(0).closest('table').getElementsByTagName('colgroup')[0];
 	var eCol = document.createElement('col');
 	eCol.style.width= '35px';
 	insertBefore(eColGroup.children[3],eCol);
+	*/
 
 	var monsterStyle = document.getElementById('mh_vue_hidden_monstres').getElementsByTagName('style')[0];
-	monsterStyle.innerHTML =
-		'.mh_tdborder.footable#VueMONSTRE td:nth-last-child(3), ' +
-		'.mh_tdborder.footable#VueMONSTRE td:nth-last-child(2), ' +
-		'.mh_tdborder.footable#VueMONSTRE td:nth-last-child(1) { text-align: center; }';
+	var sStyle = '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellDist + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE td:nth-child(' + (MZ_EtatCdMs.indexCellDist + 1) + ') { width: 40px; text-align: right; }';
+	if (MZ_EtatCdMs.indexCellActions >= 0) sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellActions + 1) + ') { width: 33px; }';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellID + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE td:nth-child(' + (MZ_EtatCdMs.indexCellID + 1) + ') { width: 50px; text-align: right; }';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellNivMZ + 1) + ') { width: 35px; text-align: center; }';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellX + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE td:nth-child(' + (MZ_EtatCdMs.indexCellX + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellY + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE td:nth-child(' + (MZ_EtatCdMs.indexCellY + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE th:nth-child(' + (MZ_EtatCdMs.indexCellN + 1) + '), ';
+	sStyle += '.mh_tdborder.footable#VueMONSTRE td:nth-child(' + (MZ_EtatCdMs.indexCellN + 1) + ') { width: 30px; text-align: center; }';
+	monsterStyle.innerHTML = sStyle;
+/* version MH hors MZ avec colonne des menus contextuels (non smartphone)
+.mh_tdborder.footable#VueMONSTRE th:nth-child(1), 
+.mh_tdborder.footable#VueMONSTRE td:nth-child(1) { width: 40px; text-align: right; }
+.mh_tdborder.footable#VueMONSTRE th:nth-child(2) { width: 33px; }
+.mh_tdborder.footable#VueMONSTRE th:nth-child(3) { width: 50px; }
+.mh_tdborder.footable#VueMONSTRE th:nth-child(5), 
+.mh_tdborder.footable#VueMONSTRE td:nth-child(5), 
+.mh_tdborder.footable#VueMONSTRE th:nth-child(6), 
+.mh_tdborder.footable#VueMONSTRE td:nth-child(6), 
+.mh_tdborder.footable#VueMONSTRE th:nth-child(7), 
+.mh_tdborder.footable#VueMONSTRE td:nth-child(7) { width: 30px; text-align: center; }
+*/
 
 	td.id = 'MZ_TITRE_NIVEAU_MONSTRE';
 	for(var i=1 ; i<=MZ_EtatCdMs.nbMonstres ; i++) {
@@ -10458,11 +10505,6 @@ function retrieveCDMs() {
 // Récupère les CdM disponibles dans la BDD
 // Lancé uniquement sur toggleLevelColumn
 	if(checkBoxLevels.checked) return;
-	// Roule, message si l'utilisateur a décoché "Menu d'actions contextuelles"
-	if (!MZ_EtatCdMs.tr_monstres[0].cells[2].innerHTML.match(/r[eéè]f/i)) {
-		avertissement('Vous avez décoché "Menu d\'actions contextuelles" dans la fenêtre de limitation de la vue, Moutyzilla ne peut pas afficher les niveaux dans ce mode<br />La fenêtre de limitation de la vue est celle qu\'on obtient en cliquant sur l\'œil dans le menu de gauche', 9999999);
-		return;
-	}
 	if (MZ_EtatCdMs.nbMonstres < 1) return;
 
 	var tReq = [];
@@ -10964,7 +11006,9 @@ function filtreMonstres() {
 		noEM = saveCheckBox(checkBoxEM, 'NOEM');
 	}
 	// Filtrage par nom
-	var strMonstre = document.getElementById('strMonstres').value.toLowerCase();
+	var eMonstre = document.getElementById('strMonstres');
+	if (!eMonstre) return;	// cas smartphone
+	var strMonstre = eMonstre.value.toLowerCase();
 	// Génère la liste des mobs engagés (si filtrés)
 	if(noEngages && !isEngagesComputed) {
 		for(var i=nbTrolls ; i>0 ; i--) {
@@ -11841,6 +11885,18 @@ function do_vue() {
 	// maintenant, tr_monstres et this['tr_monstres'], ce n'est plus la même chose
 	// je fais une recopie :(
 	MZ_EtatCdMs.tr_monstres = VueContext.tr_monstres;
+	for (var i = 0; i < MZ_EtatCdMs.tr_monstres[0].cells.length; i++) {// Roule 22/07/2020
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/Dist/i)) MZ_EtatCdMs.indexCellDist = i;
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/Action/i)) MZ_EtatCdMs.indexCellActions = i;
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/r[eéè]f/i)) MZ_EtatCdMs.indexCellID = i;
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/^X$/i)) MZ_EtatCdMs.indexCellX = i;
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/^Y$/i)) MZ_EtatCdMs.indexCellY = i;
+		if (MZ_EtatCdMs.tr_monstres[0].cells[i].innerText.match(/^N$/i)) MZ_EtatCdMs.indexCellN = i;
+	}
+	if (MZ_EtatCdMs.indexCellDist < 0 || MZ_EtatCdMs.indexCellID < 0 || MZ_EtatCdMs.indexCellX < 0 || MZ_EtatCdMs.indexCellY < 0 || MZ_EtatCdMs.indexCellN < 0) {
+		avertissement('Impossible de retrouver les colonnes de la vue des monstres, arrêt MZ', 9999999);
+		return;
+	}
 	tr_trolls = VueContext.tr_trolls;
 	tr_tresors = VueContext.tr_tresors;
 	tr_champignons = VueContext.tr_champignons;
@@ -13076,21 +13132,22 @@ function competences(comp,niveau) {
 			+'Ramassez quelques Coquillages, et en avant la musique !<br>';
         texte +='<table class="mh_tdborder" cellspacing="1" cellpadding="1" border="0"><tbody>' +
             '<tr class="mh_tdtitre"><th>Nom</th><th>Effet</th></tr>' +
-            '<tr class="mh_tdpage"><td>Booong</td><td>deg +1 / esq -1</td></tr>' +
             '<tr class="mh_tdpage"><td>Badaboum</td><td>att +1</td></tr>' +
-            '<tr class="mh_tdpage"><td>Zbouing </td><td>reg +1</td></tr>' +
-            '<tr class="mh_tdpage"><td>Whoooom</td><td>concentration +2</td></tr>' +
-            '<tr class="mh_tdpage"><td>Krouiiik</td><td>concentration -2</td></tr>' +
-            '<tr class="mh_tdpage"><td>Tuutuuuut</td><td>att -1</td></tr>' +
+            '<tr class="mh_tdpage"><td>Booong</td><td>deg +1 / esq -1</td></tr>' +
             '<tr class="mh_tdpage"><td>Gaaaw</td><td>Fatigue +1</td></tr>' +
+            '<tr class="mh_tdpage"><td>Ghimighimighimi</td><td>Impacte le baroufleur</td></tr>' +
             '<tr class="mh_tdpage"><td>Huitsch</td><td>deg -1</td></tr>' +
             '<tr class="mh_tdpage"><td>Kliketiiik</td><td>esq -1 / concentration -1</td></tr>' +
+            '<tr class="mh_tdpage"><td>Krouiiik</td><td>concentration -2</td></tr>' +
             '<tr class="mh_tdpage"><td>Kssksss</td><td>esq +1</td></tr>' +
             '<tr class="mh_tdpage"><td>Praaaouuut</td><td>reg-1 </td></tr>'+
             '<tr class="mh_tdpage"><td>Sssrileur</td><td>seuil 6, rend visible</td></tr>' +
             '<tr class="mh_tdpage"><td>Tagadagada</td><td>augmente le nombre de tours (1 tour par tranche de 2)</td></tr>' +
-            '<tr class="mh_tdpage"><td>Ytseukayndof</td><td>seuil 2, rend les bonus magiques</td></tr>' +
+            '<tr class="mh_tdpage"><td>Tuutuuuut</td><td>att -1</td></tr>' +
             '<tr class="mh_tdpage"><td>Whaaag</td><td>augmente la portée horizontale (1 case par tranche de 4)</td></tr>' +
+            '<tr class="mh_tdpage"><td>Whoooom</td><td>concentration +2</td></tr>' +
+            '<tr class="mh_tdpage"><td>Ytseukayndof</td><td>seuil 2, rend les bonus magiques</td></tr>' +
+            '<tr class="mh_tdpage"><td>Zbouing </td><td>reg +1</td></tr>' +
         '</tbody></table>';
 	} else if(comp.indexOf("Botte Secrete")!=-1) {
 		modA = atttour?Math.floor(Math.floor(2*att/3)*atttour/100):0;
