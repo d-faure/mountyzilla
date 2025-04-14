@@ -6348,37 +6348,69 @@ function do_infomonstre() {
 /** x~x ColorizeLabels ---------------------------------------------------- */
 class MZ_cColorizeLabels {
 	static initDone = false;
-	static defaults = {
-		"Monstres": [],
-		"Trolls": [],
-		"Trésors": [
-			{ 're': 'Gigots de Gob', 'color': '#FF8000' },
-			{ 're': 'Composant', 'color': '#058405' },
-			{ 're': 'Carte|Coquillage|Conteneur|Minerai|Parchemin|Tête Réduite|Spécial', 'color': '#900090' }
-		],
-		"Champignons": [],
-		"Lieux": [
-			{ 're': 'Portail de Téléportation', 'color': '#FF0000' },
-			{ 're': 'Sortie de Portail', 'color': '#058405' }
-		],
-		"Cénotaphes": []
-	};
+	static enabled = false;
+	static vuesSelect = [
+		{ id:'monstres',    txt:"Monstres" },
+		{ id:'trolls',      txt:"Trolls" },
+		{ id:'tresors',     txt:"Trésors" },
+		{ id:'champignons', txt:"Champignons" },
+		{ id:'lieux',       txt:"Lieux" },
+		{ id:'cenotaphes',  txt:"Cénotaphes" }
+	];
+	static defaults = [
+		{ t:'tresors', c:'#FF8000', re:"Gigots de Gob" },
+		{ t:'tresors', c:'#058405', re:"Composant" },
+		{ t:'tresors', c:'#900090', re:"Carte|Coquillage|Conteneur|Minerai|Parchemin|Tête Réduite|Spécial" },
+		{ t:'lieux',   c:'#FF0000', re:"Portail de Téléportation" },
+		{ t:'lieux',   c:'#058405', re:"Sortie de Portail" }
+	];
+	static colorizers;
+
+	static getColorizers(key) {
+		let str = MY_getValue(key);
+		if (str == null || str == "undefined") {
+			MZ_cColorizeLabels.colorizers = MZ_cColorizeLabels.defaults;
+			return;
+		}
+		MZ_cColorizeLabels.colorizers = JSON.parse(str);
+	}
 
 	static init() {
 		if (MZ_cColorizeLabels.initDone) { return; }
 		MZ_cColorizeLabels.initDone = true;
-		if (MY_getValue('COLORIZELABELS') != 'true') { return; }
 
+		MZ_cColorizeLabels.enabled = MZ_getValueBoolean('COLORIZE');
+		MZ_cColorizeLabels.getColorizers('COLORIZERS');
+
+		logMZ("init", {
+			'str': str,
+			'MZ_cColorizeLabels.enabled': MZ_cColorizeLabels.enabled,
+			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
+		});
 	}
 
 	static defineOptions(mainBody, unused_tbody) {
+		MZ_cColorizeLabels.enabled = MZ_getValueBoolean('COLORIZE');
+		MZ_cColorizeLabels.getColorizers('COLORIZERS');
+
 		//let td = appendTd(appendTr(tbody));
 		let td = appendTd(appendTr(mainBody, 'mh_tdpage'));
-		appendCheckBoxBlock(td, 'colorizeLabels', "Coloriser les libellés", MY_getValue('COLORIZELABELS') == 'true');
+		appendCheckBoxBlock(td, 'colorizeLabels', "Coloriser les libellés", MZ_cColorizeLabels.enabled);
+
+		logMZ("define", {
+			'MZ_cColorizeLabels.enabled': MZ_cColorizeLabels.enabled,
+			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
+		});
+
+		td = appendTd(appendTr(mainBody, 'mh_tdpage'));
+		let colorizerBody = appendSubTable(td);
+		colorizerBody.id = 'colorizerBody';
 
 		let appendColorizer = function (td, id) {
 			let select = document.createElement('select');
 			select.id = id;
+
+
 		};
 
 		let addColorizer = function () {},
@@ -6391,12 +6423,26 @@ class MZ_cColorizeLabels {
 	}
 
 	static saveOptions() {
-		MZ_setOrRemoveValue('COLORIZELABELS', document.getElementById('colorizeLabels').checked);
+		MZ_cColorizeLabels.enabled = document.getElementById('colorizeLabels').checked;
+		MZ_setOrRemoveValue('COLORIZE', MZ_cColorizeLabels.enabled);
 
+		let str = JSON.stringify(MZ_cColorizeLabels.colorizers);
+		MY_setValue('COLORIZERS', str);
+
+		logMZ("save", {
+			'str': str,
+			'MZ_cColorizeLabels.enabled': MZ_cColorizeLabels.enabled,
+			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
+		});
 	}
 
 	static processVue(oVue, type) {
+		if (! MZ_cHighlightSameXYN.enabled) { return; }
 
+		logMZ("process", {
+			'MZ_cColorizeLabels.enabled': MZ_cColorizeLabels.enabled,
+			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
+		});
 	}
 }
 
@@ -6409,10 +6455,10 @@ class MZ_cHighlightSameXYN {
 	static init() {
 		if (MZ_cHighlightSameXYN.initDone) { return; }
 		MZ_cHighlightSameXYN.initDone = true;
-		if (MY_getValue('HIGHLIGHTSAMEXYN') != 'true') { return; }
+		if (! MZ_getValueBoolean('HIGHLIGHTSAMEXYN')) { return; }
 
 		MZ_cHighlightSameXYN.skipProcess = false;
-		MZ_cHighlightSameXYN.coordsOnly = MY_getValue('HIGHLIGHTSAMEXYNCOORDSONLY') == 'true';
+		MZ_cHighlightSameXYN.coordsOnly = MZ_getValueBoolean('HIGHLIGHTSAMEXYNCOORDSONLY');
 		addStyleSheet("tr.xyn td, tr.xyn-sel td { background-color: rgba(255, 255, 255, 0.5); }");
 	}
 
@@ -6420,8 +6466,8 @@ class MZ_cHighlightSameXYN {
 		//let td = appendTd(appendTr(tbody));
 		let td = appendTd(appendTr(mainBody, 'mh_tdpage'));
 
-		appendCheckBoxBlock(td, 'highlightSameXYN', "Améliorer la vue d'une caverne", MY_getValue('HIGHLIGHTSAMEXYN') == 'true');
-		appendCheckBoxBlock(td, 'highlightSameXYNCoordsOnly', "uniquement depuis les coordonnées", MY_getValue('HIGHLIGHTSAMEXYNCOORDSONLY') == 'true');
+		appendCheckBoxBlock(td, 'highlightSameXYN', "Améliorer la vue d'une caverne", MZ_getValueBoolean('HIGHLIGHTSAMEXYN'));
+		appendCheckBoxBlock(td, 'highlightSameXYNCoordsOnly', "uniquement depuis les coordonnées", MZ_getValueBoolean('HIGHLIGHTSAMEXYNCOORDSONLY'));
 	}
 
 	static saveOptions() {
@@ -13822,6 +13868,7 @@ class MZ_cVueJSON {
 		});
 		this.mutationObserver.observe(this.eltTable, MZ_cVueJSON.MutationObserverConfig);
 
+		MZ_cColorizeLabels.init();
 		MZ_cHighlightSameXYN.init();
 		this.load();
 	}
@@ -14273,7 +14320,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 		// cette fonction est appelée une fois que les objects dérivés de MZ_cLigneMonstre ont été créés
 		MZ_cLigneMonstre.sendAJAXCdMRequest();
 		MZ_Tactique.initPopup();
-		MZ_cColorizeLabels.processVue(MZ_cLigneMonstre.MZ_oVueJSON, 'Monstres');
+		MZ_cColorizeLabels.processVue(MZ_cLigneMonstre.MZ_oVueJSON, 'monstres');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneMonstre.MZ_oVueJSON);
 
 		MZ_cLigneMonstre.MZ_oVueJSON.initFiltre();
@@ -15050,7 +15097,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 
 		initPXTroll();
 		MZ_cLigneTroll.processPX();
-		MZ_cColorizeLabels.processVue(MZ_cLigneTroll.MZ_oVueJSON, 'Trolls');
+		MZ_cColorizeLabels.processVue(MZ_cLigneTroll.MZ_oVueJSON, 'trolls');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTroll.MZ_oVueJSON);
 		MZ_cLigneTroll.MZ_oVueJSON.initFiltre();
 
@@ -15382,7 +15429,7 @@ class MZ_cLigneTresor extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
-		MZ_cColorizeLabels.processVue(MZ_cLigneTresor.MZ_oVueJSON, 'Trésors');
+		MZ_cColorizeLabels.processVue(MZ_cLigneTresor.MZ_oVueJSON, 'tresors');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTresor.MZ_oVueJSON);
 		MZ_cLigneTresor.MZ_oVueJSON.initFiltre();
 	}
@@ -15392,7 +15439,7 @@ class MZ_cLigneChampignon extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
-		MZ_cColorizeLabels.processVue(MZ_cLigneChampignon.MZ_oVueJSON, 'Champignons');
+		MZ_cColorizeLabels.processVue(MZ_cLigneChampignon.MZ_oVueJSON, 'champignons');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneChampignon.MZ_oVueJSON);
 	}
 }
@@ -15401,7 +15448,7 @@ class MZ_cLigneLieu extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
-		MZ_cColorizeLabels.processVue(MZ_cLigneLieu.MZ_oVueJSON, 'Lieux');
+		MZ_cColorizeLabels.processVue(MZ_cLigneLieu.MZ_oVueJSON, 'lieux');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneLieu.MZ_oVueJSON);
 		MZ_cLigneLieu.MZ_oVueJSON.initFiltre();
 	}
@@ -15411,7 +15458,7 @@ class MZ_cLigneCenotaphe extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
-		MZ_cColorizeLabels.processVue(MZ_cLigneCenotaphe.MZ_oVueJSON, 'Cénotaphes');
+		MZ_cColorizeLabels.processVue(MZ_cLigneCenotaphe.MZ_oVueJSON, 'cenotaphes');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneCenotaphe.MZ_oVueJSON);
 	}
 }
