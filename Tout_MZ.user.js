@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.26
+// @version     1.6.27
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.26';
+var MZ_latest = '1.6.27';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -10858,7 +10858,7 @@ function initRaccourcis() {
 
 	/* Création du menu des Raccourcis */
 	menuRac = document.createElement('div');
-	menuRac.className = 'mh_textbox';
+	menuRac.className = 'mh_tdpage';
 	menuRac.style =
 		'position:fixed; top:10px; left:10px;' +
 		'max-width:190px;' +
@@ -17124,10 +17124,11 @@ function MZ_doSearchCompoTanieres(event) {
 	let msgErreur, msgWarning;
 	// ajouter un compo à l'objet oCompos
 	let addCompoQualite = function (compo, qualite) {
-		let oCompo = oCompos[compo];
+		let compoLC = compo.toLowerCase();
+		let oCompo = oCompos[compoLC];
 		if (oCompo == undefined) {
-			oCompo = {};
-			oCompos[compo] = oCompo;
+			oCompo = {nom: compo};
+			oCompos[compoLC] = oCompo;
 		}
 		let qty = oCompo[qualite];
 		if (qty == undefined) qty = 0;
@@ -17164,8 +17165,9 @@ function MZ_doSearchCompoTanieres(event) {
 			displayTitre(`Pas de composant de ${oInfo.monstre} en tanière`, 'red');
 		else if (tabTri.length > 0)
 			displayTitre(`Vous avez ${nTotal} composants de ${oInfo.monstre} en tanière`, 'blue');
-		if (!tabTri.includes(oInfo.composant)) {
-			tabTri.push(oInfo.composant);
+		let compoLC = oInfo.composant.toLowerCase();
+		if (!tabTri.includes(compoLC)) {
+			tabTri.push(oInfo.compoLC);
 		}
 		tabTri.sort();
 		eTr = document.createElement('tr');
@@ -17189,12 +17191,12 @@ function MZ_doSearchCompoTanieres(event) {
 				eTd = document.createElement('td');
 				eTd.style.border = 'solid black 1px';
 				eTd.className = 'mh_tdpage';
-				if (oInfo.composant == compo && oInfo.qualite == qualite) {
+				if (oInfo.composant.toLowerCase() == compo && oInfo.qualite == qualite) {
 					eTd.style.background = 'white';
 				} else {
 				}
 				if (qualite == '') {
-					eTd.appendChild(document.createTextNode(compo));
+					eTd.appendChild(document.createTextNode(oCompos[compo].nom));
 				} else if (oCompos[compo] && oCompos[compo][qualite]) {
 					eTd.appendChild(document.createTextNode(oCompos[compo][qualite]));
 					eTd.style.textAlign = 'right';
