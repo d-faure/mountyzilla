@@ -6360,11 +6360,23 @@ class MZ_cColorizeLabels {
 
 	}
 
-	static defineOptions(tbody) {
-		let tr = appendTr(tbody),
-			td = appendTd(tr);
+	static defineOptions(mainBody, unused_tbody) {
+		//let td = appendTd(appendTr(tbody));
+		let td = appendTd(appendTr(mainBody, 'mh_tdpage'));
 		appendCheckBoxBlock(td, 'colorizeLabels', "Coloriser les libellés", MY_getValue('COLORIZELABELS') == 'true');
 
+		let appendColorizer = function (td, id) {
+			let select = document.createElement('select');
+			select.id = id;
+		};
+
+		let addColorizer = function () {},
+			removeColorizer = function () {};
+
+		let tbody = appendSubTable(td);
+		td = appendTdCenter(appendTr(tbody));
+		appendButton(td, 'Ajouter', addColorizer);
+		appendButton(td, 'Supprimer', removeColorizer);
 	}
 
 	static saveOptions() {
@@ -6393,9 +6405,10 @@ class MZ_cHighlightSameXYN {
 		addStyleSheet("tr.xyn td, tr.xyn-sel td { background-color: rgba(255, 255, 255, 0.5); }");
 	}
 
-	static defineOptions(tbody) {
-		let tr = appendTr(tbody),
-			td = appendTd(tr);
+	static defineOptions(mainBody, unused_tbody) {
+		//let td = appendTd(appendTr(tbody));
+		let td = appendTd(appendTr(mainBody, 'mh_tdpage'));
+
 		appendCheckBoxBlock(td, 'highlightSameXYN', "Améliorer la vue d'une caverne", MY_getValue('HIGHLIGHTSAMEXYN') == 'true');
 		appendCheckBoxBlock(td, 'highlightSameXYNCoordsOnly', "uniquement depuis les coordonnées", MY_getValue('HIGHLIGHTSAMEXYNCOORDSONLY') == 'true');
 	}
@@ -9506,8 +9519,8 @@ function insertOptionTable(insertPt) {
 	td = appendTd(tr);
 	appendCheckBoxBlock(td, 'usecss', 'Utiliser la CSS pour les couleurs de la diplomatie', MY_getValue(`${numTroll}.USECSS`) == 'true');
 
-	MZ_cColorizeLabels.defineOptions(tbody);
-	MZ_cHighlightSameXYN.defineOptions(tbody);
+	MZ_cColorizeLabels.defineOptions(mainBody, tbody);
+	MZ_cHighlightSameXYN.defineOptions(mainBody, tbody);
 
 	/* Interface Tactique */
 	td = appendTd(appendTr(mainBody, 'mh_tdtitre'));
