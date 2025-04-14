@@ -6345,6 +6345,49 @@ function do_infomonstre() {
 	displayScriptTime(undefined, 'do_infomonstre_log');
 }
 
+/** x~x ColorizeLabels ---------------------------------------------------- */
+class MZ_cColorizeLabels {
+	static initDone = false;
+	static defaults = {
+		"Monstres": [],
+		"Trolls": [],
+		"Trésors": [
+			{ 're': 'Gigots de Gob', 'color': '#FF8000' },
+			{ 're': 'Composant', 'color': '#058405' },
+			{ 're': 'Carte|Coquillage|Conteneur|Minerai|Parchemin|Tête Réduite|Spécial', 'color': '#900090' }
+		],
+		"Champignons": [],
+		"Lieux": [
+			{ 're': 'Portail de Téléportation', 'color': '#FF0000' },
+			{ 're': 'Sortie de Portail', 'color': '#058405' }
+		],
+		"Cénotaphes": []
+	};
+
+	static init() {
+		if (MZ_cColorizeLabels.initDone) { return; }
+		MZ_cColorizeLabels.initDone = true;
+		if (MY_getValue('COLORIZELABELS') != 'true') { return; }
+
+	}
+
+	static defineOptions(tbody) {
+		let tr = appendTr(tbody),
+			td = appendTd(tr);
+		appendCheckBoxBlock(td, 'colorizeLabels', "Coloriser les libellés", MY_getValue('COLORIZELABELS') == 'true');
+
+	}
+
+	static saveOptions() {
+		MZ_setOrRemoveValue('COLORIZELABELS', document.getElementById('colorizeLabels').checked);
+
+	}
+
+	static processVue(oVue, type) {
+
+	}
+}
+
 /** x~x Highlight same XYN --------------------------------------------- */
 class MZ_cHighlightSameXYN {
 	static initDone = false;
@@ -9319,6 +9362,7 @@ function saveAll() {
 
 		MZ_setOrRemoveValue('NOINFOEM', document.getElementById('noInfoEM').checked);
 
+		MZ_cColorizeLabels.saveOptions();
 		MZ_cHighlightSameXYN.saveOptions();
 
 		// Pourquoi Tilk stockait-il tout en str ?
@@ -9607,6 +9651,7 @@ function insertOptionTable(insertPt) {
 	td = appendTd(tr);
 	appendCheckBoxBlock(td, 'usecss', 'Utiliser la CSS pour les couleurs de la diplomatie', MY_getValue(`${numTroll}.USECSS`) == 'true');
 
+	MZ_cColorizeLabels.defineOptions(tbody);
 	MZ_cHighlightSameXYN.defineOptions(tbody);
 
 	/* Interface Tactique */
@@ -14215,6 +14260,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 		// cette fonction est appelée une fois que les objects dérivés de MZ_cLigneMonstre ont été créés
 		MZ_cLigneMonstre.sendAJAXCdMRequest();
 		MZ_Tactique.initPopup();
+		MZ_cColorizeLabels.processVue(MZ_cLigneMonstre.MZ_oVueJSON, 'Monstres');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneMonstre.MZ_oVueJSON);
 
 		MZ_cLigneMonstre.MZ_oVueJSON.initFiltre();
@@ -14991,6 +15037,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 
 		initPXTroll();
 		MZ_cLigneTroll.processPX();
+		MZ_cColorizeLabels.processVue(MZ_cLigneTroll.MZ_oVueJSON, 'Trolls');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTroll.MZ_oVueJSON);
 		MZ_cLigneTroll.MZ_oVueJSON.initFiltre();
 
@@ -15322,6 +15369,7 @@ class MZ_cLigneTresor extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
+		MZ_cColorizeLabels.processVue(MZ_cLigneTresor.MZ_oVueJSON, 'Trésors');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTresor.MZ_oVueJSON);
 		MZ_cLigneTresor.MZ_oVueJSON.initFiltre();
 	}
@@ -15331,6 +15379,7 @@ class MZ_cLigneChampignon extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
+		MZ_cColorizeLabels.processVue(MZ_cLigneChampignon.MZ_oVueJSON, 'Champignons');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneChampignon.MZ_oVueJSON);
 	}
 }
@@ -15339,6 +15388,7 @@ class MZ_cLigneLieu extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
+		MZ_cColorizeLabels.processVue(MZ_cLigneLieu.MZ_oVueJSON, 'Lieux');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneLieu.MZ_oVueJSON);
 		MZ_cLigneLieu.MZ_oVueJSON.initFiltre();
 	}
@@ -15348,6 +15398,7 @@ class MZ_cLigneCenotaphe extends MZ_cLigneVue {
 	static MZ_oVueJSON;
 	static initGlobal() {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
+		MZ_cColorizeLabels.processVue(MZ_cLigneCenotaphe.MZ_oVueJSON, 'Cénotaphes');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneCenotaphe.MZ_oVueJSON);
 	}
 }
