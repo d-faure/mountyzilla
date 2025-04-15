@@ -6372,7 +6372,7 @@ class MZ_cColorizeLabels {
 		MZ_cColorizeLabels.getColorizers('COLORIZERS');
 
 		logMZ("init", {
-			'str': str,
+			//'str': str,
 			'MZ_cColorizeLabels.enabled': MZ_cColorizeLabels.enabled,
 			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
 		});
