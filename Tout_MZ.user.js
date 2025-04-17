@@ -6366,8 +6366,9 @@ class MZ_cColorizeLabels {
 	];
 	static colorizers;
 
-	static getColorizers(key) {
-		let str = MY_getValue(key);
+	static getConfig() {
+		MZ_cColorizeLabels.enabled = MZ_getValueBoolean('COLORIZE');
+		let str = MY_getValue('COLORIZERS');
 		if (str == null || str == "undefined") {
 			MZ_cColorizeLabels.colorizers = MZ_cColorizeLabels.defaults;
 			return;
@@ -6379,8 +6380,7 @@ class MZ_cColorizeLabels {
 		if (MZ_cColorizeLabels.initDone) { return; }
 		MZ_cColorizeLabels.initDone = true;
 
-		MZ_cColorizeLabels.enabled = MZ_getValueBoolean('COLORIZE');
-		MZ_cColorizeLabels.getColorizers('COLORIZERS');
+		MZ_cColorizeLabels.getConfig();
 
 		logMZ("init", {
 			//'str': str,
@@ -6390,8 +6390,7 @@ class MZ_cColorizeLabels {
 	}
 
 	static defineOptions(mainBody, unused_tbody) {
-		MZ_cColorizeLabels.enabled = MZ_getValueBoolean('COLORIZE');
-		MZ_cColorizeLabels.getColorizers('COLORIZERS');
+		MZ_cColorizeLabels.getConfig();
 
 		//let td = appendTd(appendTr(tbody));
 		let td = appendTd(appendTr(mainBody, 'mh_tdpage'));
