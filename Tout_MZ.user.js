@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.29
+// @version     1.6.36
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.29';
+var MZ_latest = '1.6.36';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -6503,7 +6503,7 @@ class MZ_cHighlightSameXYN {
 	}
 }
 
-// to be deleted à l'abandon de l'ancienne vue
+// to be deleted à l'abandon de l'ancienne vue (et c'est fait en vanilla dans la nouvelle vue 😛)
 function do_highlightSameXYN() {
 	if (MY_getValue('HIGHLIGHTSAMEXYN') != 'true') return;
 
@@ -6720,12 +6720,15 @@ function scizPrettyPrintPortal(p) {
 	return res;
 }
 
+// quand l'ancienne vue aura disparu, ce sera bien de découper en 6 partie par bloc et faire autant que callback que nécessaire
 function do_scizEnhanceView() {
 	scizGlobal.treasures = [];
+	let vue2 = false;	// to be deleted quand on n'aura plus que la nouvelle vue
 
 	if (document.body.id != 'p_mavue') {
-		logMZ('SCIZ sur la nouvelle vue : pas enore fait');
-		return;
+		//logMZ('SCIZ sur la nouvelle vue : pas encore fait');
+		//return;
+		vue2 = true;
 	}
 
 	// Ensure we have a JWT setup for the current user
@@ -6738,30 +6741,62 @@ function do_scizEnhanceView() {
 	// Add our CSS
 	scizAddCSS();
 
-	// Retrieve position and view
-	let pos = document.body.innerHTML.match(/X\s*=\s*(-?\d+)\s*,\s*Y\s*=\s*(-?\d+)\s*,\s*N\s*=\s*(-?\d+)/);
-	let posX = parseInt(pos[1]);
-	let posY = parseInt(pos[2]);
-	let posN = parseInt(pos[3]);
-	let viewH = parseInt(document.body.innerHTML.match(/(\d+)\s*cases?\s*horizontalement/)[1]);
-	let viewV = parseInt(document.body.innerHTML.match(/(\d+)\s*verticalement/)[1]);
+	let oPosTroll;
+	if (vue2) {
+		// Retrieve position and view
+		let pos = document.getElementById('position');
+		if (!pos) {
+			warnMZ('do_scizEnhanceView_log, pas de pos, on arrête le traitement SCIZ');
+			return;
+		}
+		oPosTroll = JSON.parse(pos.getAttribute('data-position'));
+	} else {
+		// Retrieve position and view
+		oPosTroll = {};
+		let pos = document.body.innerHTML.match(/X\s*=\s*(-?\d+)\s*,\s*Y\s*=\s*(-?\d+)\s*,\s*N\s*=\s*(-?\d+)/);
+		if (!pos) {
+			warnMZ('do_scizEnhanceView_log, pas de pos, on arrête le traitement SCIZ');
+			return;
+		}
+		oPosTroll.x = parseInt(pos[1]);
+		oPosTroll.y = parseInt(pos[2]);
+		oPosTroll.n = parseInt(pos[3]);
+		oPosTroll.vueH = parseInt(document.body.innerHTML.match(/(\d+)\s*cases?\s*horizontalement/)[1]);
+		oPosTroll.vueV = parseInt(document.body.innerHTML.match(/(\d+)\s*verticalement/)[1]);
+	}
+	//console.log('do_scizEnhanceView_log oPosTroll=' + JSON.stringify(oPosTroll));
 
 	/* SCIZ View - TROLLS */
 	let cbx = MY_getValue(`${numTroll}.SCIZ_CB_VIEW_TROLLS`);
+	let xPathTrollQuery;
+	let xPathTrolls;
+	let xPathTroll;
 	if (cbx !== '0') {
 		// Retrieve trolls
-		let xPathTrollQuery = "//*/table[@id='VueTROLL']/tbody/tr";
-		let xPathTrolls = document.evaluate(xPathTrollQuery, document, null, 0, null);
-		let xPathTroll;
-		while (xPathTroll = xPathTrolls.iterateNext()) {
-			if (xPathTroll.children[2]) scizGlobal.trolls.push({
-				id: parseInt(xPathTroll.children[2].innerHTML),
-				name: xPathTroll.children[3].innerHTML,
-				sciz_desc: null,
-				node: xPathTroll,
-				displayed: false,
-				caracs: null,
-			});
+		if (vue2) {
+			for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
+				scizGlobal.trolls.push({
+					id: oLigne.id,
+					name: oLigne.nom,
+					sciz_desc: null,
+					node: oLigne.eltTdNom.parentNode,
+					displayed: false,
+					caracs: null,
+				});
+			}
+		} else {
+			xPathTrollQuery = "//*/table[@id='VueTROLL']/tbody/tr";
+			xPathTrolls = document.evaluate(xPathTrollQuery, document, null, 0, null);
+			while (xPathTroll = xPathTrolls.iterateNext()) {
+				if (xPathTroll.children[2]) scizGlobal.trolls.push({
+					id: parseInt(xPathTroll.children[2].innerHTML),
+					name: xPathTroll.children[3].innerHTML,
+					sciz_desc: null,
+					node: xPathTroll,
+					displayed: false,
+					caracs: null,
+				});
+			}
 		}
 
 		// Call SCIZ
@@ -6795,14 +6830,14 @@ function do_scizEnhanceView() {
 								break;
 							}
 						}
-						if (!found) {
+						if ((!found) && !vue2) {
 							// Special case of itself
 							let is_self = false;
 							if (parseInt(numTroll) === t.id) {
 								is_self = true;
-								t.pos_x = posX;
-								t.pos_y = posY;
-								t.pos_n = posN;
+								t.pos_x = oPosTroll.x;
+								t.pos_y = oPosTroll.y;
+								t.pos_n = oPosTroll.n;
 								// Don't display the user itself if he does not want to
 								cbx = MY_getValue(`${numTroll}.SCIZ_CB_VIEW_USER`);
 								if (cbx === '0') {
@@ -6810,7 +6845,7 @@ function do_scizEnhanceView() {
 								}
 							}
 							// Find the right index
-							let distance = Math.max(Math.abs(t.pos_x - posX), Math.abs(t.pos_y - posY), Math.abs(t.pos_n - posN));
+							let distance = Math.max(Math.abs(t.pos_x - oPosTroll.x), Math.abs(t.pos_y - oPosTroll.y), Math.abs(t.pos_n - oPosTroll.n));
 							xPathTrolls = document.evaluate(xPathTrollQuery, document, null, 0, null);
 							while (xPathTroll = xPathTrolls.iterateNext()) {
 								if (is_self) {
@@ -6838,7 +6873,7 @@ function do_scizEnhanceView() {
 							} else {
 								document.evaluate("//*/table[@id='VueTROLL']/tbody", document, null, 0, null).iterateNext().appendChild(troll);
 							}
-							//console.log(`MZ do_scizEnhanceView set tr_trolls[${nbTrolls+1}] `);
+							//console.log(`MZ do_scizEnhanceView_log set tr_trolls[${nbTrolls+1}] `);
 							tr_trolls[++nbTrolls] = troll;
 						}
 					});
@@ -6856,32 +6891,51 @@ function do_scizEnhanceView() {
 	if (cbx !== '0') {
 		// Retrieve treasures
 		let ids = [];
-		let xPathTreasureQuery = "//*/table[@id='VueTRESOR']/tbody/tr";
-		let xPathTreasures = document.evaluate(xPathTreasureQuery, document, null, 0, null);
+		let xPathTreasureQuery;
+		let xPathTreasures
 		let xPathTreasure;
-		while (xPathTreasure = xPathTreasures.iterateNext()) {
-			let xPathRef = document.evaluate("//td[@class='ref']", xPathTreasure, null, 0, null).iterateNext();
-			let xPathNom = document.evaluate("//td[@class='nom']", xPathTreasure, null, 0, null).iterateNext();
-			let oTres = {
-				id: parseInt(xPathRef.innerHTML),
-				type: xPathNom.innerHTML,
-				sciz_desc: null,
-				buried: xPathNom.innerHTML.includes('Enterré'),
-				node: xPathTreasure,
-			};
-			if (oTres.id === null || oTres.id == 0 || isNaN(oTres.id)) {
-				logMZ("do_scizEnhanceView recup des trésors, échec de l'analyse"
-					+ "\n" + xPathTreasure.children[0].innerHTML
-					+ "\n" + xPathTreasure.children[1].innerHTML
-					+ "\n" + xPathTreasure.children[2].innerHTML
-					+ "\n" + xPathTreasure.children[3].innerHTML
-				);
-				continue;
+		if (vue2) {
+			for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
+				let oTres = {
+					id: oLigne.id,
+					type: oLigne.nom,
+					sciz_desc: null,
+					buried: oLigne.nom.includes('Enterré'),
+					node: oLigne.eltTdNom.parentNode,
+				};
+				scizGlobal.treasures.push(oTres);
+				ids.push(oTres.id);
+				if (scizGlobal.treasures.length >= scizSetup.viewMaxEnhancedTreasure) {
+					break;
+				}
 			}
-			scizGlobal.treasures.push(oTres);
-			ids.push(oTres.id);
-			if (scizGlobal.treasures.length >= scizSetup.viewMaxEnhancedTreasure) {
-				break;
+		} else {
+			xPathTreasureQuery = "//*/table[@id='VueTRESOR']/tbody/tr";
+			xPathTreasures = document.evaluate(xPathTreasureQuery, document, null, 0, null);
+			while (xPathTreasure = xPathTreasures.iterateNext()) {
+				let xPathRef = document.evaluate("//td[@class='ref']", xPathTreasure, null, 0, null).iterateNext();
+				let xPathNom = document.evaluate("//td[@class='nom']", xPathTreasure, null, 0, null).iterateNext();
+				let oTres = {
+					id: parseInt(xPathRef.innerHTML),
+					type: xPathNom.innerHTML,
+					sciz_desc: null,
+					buried: xPathNom.innerHTML.includes('Enterré'),
+					node: xPathTreasure,
+				};
+				if (oTres.id === null || oTres.id == 0 || isNaN(oTres.id)) {
+					logMZ("do_scizEnhanceView_log recup des trésors, échec de l'analyse"
+						+ "\n" + xPathTreasure.children[0].innerHTML
+						+ "\n" + xPathTreasure.children[1].innerHTML
+						+ "\n" + xPathTreasure.children[2].innerHTML
+						+ "\n" + xPathTreasure.children[3].innerHTML
+					);
+					continue;
+				}
+				scizGlobal.treasures.push(oTres);
+				ids.push(oTres.id);
+				if (scizGlobal.treasures.length >= scizSetup.viewMaxEnhancedTreasure) {
+					break;
+				}
 			}
 		}
 
@@ -6931,7 +6985,6 @@ function do_scizEnhanceView() {
 			}
 		});
 	}
-
 
 	/* SCIZ View - MUSHROOMS */
 	cbx = MY_getValue(`${numTroll}.SCIZ_CB_VIEW_MUSHROOMS`);
@@ -7003,29 +7056,49 @@ function do_scizEnhanceView() {
 		let xPathMonster;
 		let iMonster = 0;
 		scizGlobal.monsters = [];
-		while (xPathMonster = xPathMonsters.iterateNext()) {
-			let mob = xPathMonster.children[4].innerHTML.match(/(?:une*\s*)*([^<>]+?)\s*\[\s*([^\]]+)/);
-			if (!mob) mob = xPathMonster.children[3].innerHTML.match(/(?:une*\s*)*([^<>]+?)\s*\[\s*([^\]]+)/);	// cas smartphone
-			if (!mob) {
-				logMZ("do_scizEnhanceView recup des monstres, échec de l'analyse"
-					+ "\n" + xPathMonster.children[0].innerHTML
-					+ "\n" + xPathMonster.children[1].innerHTML
-					+ "\n" + xPathMonster.children[2].innerHTML
-					+ "\n" + xPathMonster.children[3].innerHTML
-					+ "\n" + xPathMonster.children[4].innerHTML
-				);
-				continue;
+		if (vue2) {
+			for (let oLigne of MZ_cVueJSON.oMonstres.objets) {
+				let mob = oLigne.nom.match(/(?:une*\s*)*([^<>]+?)\s*\[\s*([^\]]+)/);
+				if (!mob) {
+					logMZ("do_scizEnhanceView_log recup des monstres, échec de l'analyse pour " + oLigne.nom);
+					continue;
+				}
+				scizGlobal.monsters.push({
+					id: oLigne.id,
+					name: mob[1],
+					age: mob[2],
+					sciz_desc: null,
+					icon: null,
+					node: oLigne.eltTdNom.parentNode,
+					indx: iMonster++,
+				});
+				mobs.push({ name: mob[1], age: mob[2] });
 			}
-			scizGlobal.monsters.push({
-				id: parseInt(xPathMonster.children[2].innerHTML),
-				name: mob[1],
-				age: mob[2],
-				sciz_desc: null,
-				icon: null,
-				node: xPathMonster,
-				indx: iMonster++,
-			});
-			mobs.push({ name: mob[1], age: mob[2] });
+		} else {
+			while (xPathMonster = xPathMonsters.iterateNext()) {
+				let mob = xPathMonster.children[4].innerHTML.match(/(?:une*\s*)*([^<>]+?)\s*\[\s*([^\]]+)/);
+				if (!mob) mob = xPathMonster.children[3].innerHTML.match(/(?:une*\s*)*([^<>]+?)\s*\[\s*([^\]]+)/);	// cas smartphone
+				if (!mob) {
+					logMZ("do_scizEnhanceView_log recup des monstres, échec de l'analyse"
+						+ "\n" + xPathMonster.children[0].innerHTML
+						+ "\n" + xPathMonster.children[1].innerHTML
+						+ "\n" + xPathMonster.children[2].innerHTML
+						+ "\n" + xPathMonster.children[3].innerHTML
+						+ "\n" + xPathMonster.children[4].innerHTML
+					);
+					continue;
+				}
+				scizGlobal.monsters.push({
+					id: parseInt(xPathMonster.children[2].innerHTML),
+					name: mob[1],
+					age: mob[2],
+					sciz_desc: null,
+					icon: null,
+					node: xPathMonster,
+					indx: iMonster++,
+				});
+				mobs.push({ name: mob[1], age: mob[2] });
+			}
 		}
 		debugMZ(`SCIZ nb mob=${mobs.length}`);
 
@@ -7090,7 +7163,7 @@ function do_scizEnhanceView() {
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': jwt, 'Content-Type': 'application/json' },
-			data: JSON.stringify({ pos_x: posX, pos_y: posY, pos_n: posN, view_h: viewH, view_v: viewV }),
+			data: JSON.stringify({ pos_x: oPosTroll.x, pos_y: oPosTroll.y, pos_n: oPosTroll.n, view_h: oPosTroll.vueH, view_v: oPosTroll.vueV }),
 			onload: function (responseDetails) {
 				try {
 					if (responseDetails.status !== 200) {
@@ -7115,7 +7188,7 @@ function do_scizEnhanceView() {
 						}
 						if (!found) {
 							// Find the right index
-							let distance = Math.max(Math.abs(t.pos_x - posX), Math.abs(t.pos_y - posY), Math.abs(t.pos_n - posN));
+							let distance = Math.max(Math.abs(t.pos_x - oPosTroll.x), Math.abs(t.pos_y - oPosTroll.y), Math.abs(t.pos_n - oPosTroll.n));
 							xPathPlaces = document.evaluate(xPathPlaceQuery, document, null, 0, null);
 							while (xPathPlace = xPathPlaces.iterateNext()) {
 								if (parseInt(xPathPlace.children[0].innerHTML) > distance) {
@@ -10133,7 +10206,9 @@ function fetchDiploGuilde() {
 					continue;
 				}
 				let ligne = form.getElementsByTagName('table')[0].rows;
-				let titre = trim(h3.textContent);
+				// je n'ai pas trouvé ça tout seul
+				// https://medium.com/@roxeteer/javascript-one-liner-to-get-elements-text-content-without-its-child-nodes-8e59269d1e71
+				let titre = trim([].reduce.call(h3.childNodes, function(a, b) { return a + (b.nodeType === 3 ? b.textContent : ''); }, ''));
 				// On laisse la gestion des couleurs à setChoixCouleurs:
 				let couleur = document.getElementById(AE + i).value;
 				diploGuilde[AE + i] = {
@@ -13225,6 +13300,8 @@ function refreshDiplo() {
 	appliqueDiplo();
 }
 
+// à déplacer en tant que méthode statique dans la classe MZ_cLigneTroll
+// pour l'instant, ça renseigne la variable globale Diplo (burk)
 function computeDiplo() {
 	// On extrait les données de couleur et on les stocke par id
 	// Ordre de préséance :
@@ -13603,9 +13680,11 @@ function do_vue() {
 	).singleNodeValue;
 	if (node) {
 		do_vue_html();	// "ancienne" vue
+		do_scizEnhanceView(); /* SCIZ */
+		do_highlightSameXYN();
 	} else {
 		avertissement('Il y a encore beaucoup à faire pour intégrer MZ à la nouvelle vue! On y travaille (parfois)...  ');
-		MZ_cVueJSON.initGlobal();
+		MZ_cVueJSON.initGlobal();	// inclut SCIZ et SameXYN
 	}
 }
 
@@ -13625,7 +13704,8 @@ class MZ_cVueJSON {
 	static oLieux;
 	static oCenotaphes;
 	static MutationObserverConfig = { childList: true, subtree: true };
-	static callbacks = [];
+	static callbacksFinMH = [];
+	static callbacksFinMZ = [];
 
 	static initGlobal() {
 		// le constructeur de chaque instance va faire le boulot d'init
@@ -13637,11 +13717,11 @@ class MZ_cVueJSON {
 		MZ_cVueJSON.oCenotaphes = new MZ_cVueJSON('cenotaphes');
 	}
 
-	static allLoaded() {
+	static allMHLoaded() {
 		// fonction appelée quand tous les blocs sont chargés
 		MZ_cVueExterne.set2DViewSystem();
-		for (let callback of MZ_cVueJSON.callbacks) {
-			console.warn('callbacks', MZ_cVueJSON.callbacks);
+		do_scizEnhanceView();
+		for (let callback of MZ_cVueJSON.callbacksFinMH) {
 			try {
 				callback();
 			} catch (exc) {
@@ -13650,32 +13730,39 @@ class MZ_cVueJSON {
 		}
 	}
 
+	static MZLoaded() {
+		// fonction appelée quand tous les blocs venant de MH sont chargés, le retour MZ est chargé et le calcul des cibles de mission est fait
+		
+	}
+
 	static registerCallback(callback) {
-		// permet aux autres script d'être notifiés quand la vue est finie (tout reçu de MH et MZ est passé)
-		MZ_cVueJSON.callbacks.push(callback);
+		// permet aux autres scripts d'être notifiés quand la vue est finie (tout reçu de MH et MZ est passé, mais PAS le retour AJAX MZ avec les infos sur les monstres)
+		MZ_cVueJSON.callbacksFinMH.push(callback);
+	}
+
+	static registerCallbackMZ(callback) {
+		// permet aux autres scripts d'être notifiés quand la vue est finie (tout reçu de MH, le retour MZ a été traité et les cibles des missions traitées)
+		// utilisé aussi pour rafraichir le filtre des monstres pour niveau, famille et mission
+		MZ_cVueJSON.callbacksFinMZ.push(callback);
 	}
 
 	// ----- fin partie statique -------------
 
-	// cette zone est spécifique à un type (monstre, troll, etc.)
+	// cette zone est spécifique à un bloc (monstre, troll, etc.)
 	nomBase;			// "montres", "trolls", etc.
 	mutationObserver;	// surveillance des tableaux pour l'appel d'une callback quand l'AJAX MH (pas MZ !) répond
 	objets;				// objets de type (dérivé de) MZ_cLigneVue
 	MH_ft;				// l'object footable
 	MH_json;			// les datas obtenues en JSON par MH en AJAX
+	initSpecificBloc;	// adrese d'une fonction pour les initialisations spécifiques à un bloc (filtres)
 	loaded = false;
+	cLigneClass;
+	nomFiltre;
 
 	// les éléments HTML
+	eltDiv;	// la div de tout le bloc
 	eltTable;
 	eltTrHead;
-	eltTrDist;
-	eltTrAction;
-	eltTrRef;
-	eltTrNom;
-	eltTrGuilde;
-	eltTrX;
-	eltTrY;
-	eltTrN;
 	// les index des colonnes
 	indxTdDist;
 	indxTdAction;
@@ -13686,9 +13773,13 @@ class MZ_cVueJSON {
 	indxTdY;
 	indxTdN;
 	indxTdNiv;
+	// filtres
+	eltDivShowFiltre;
+	eltParamFiltre;
 
 	constructor(nomBase) {
 		this.nomBase = nomBase;
+		this.eltDiv = document.getElementById(this.nomBase);
 		this.eltTable = document.getElementById('VUE_' + this.nomBase);
 		if (this.eltTable == null) {
 			logMZ("MZ_cVueJSON_log constructor pas d'élément" + 'VUE_' + this.nomBase);
@@ -13719,34 +13810,36 @@ class MZ_cVueJSON {
 				this.MH_ft = VUE_monstres;
 				// json_monstres est une VARIABLE GLOBALE définie par MH et remplie au moment du retour AJAX de la vue des monstres
 				this.MH_json = json_monstres;
-				MZ_cLigneMonstre.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneMonstre;
 				break;
 			case 'trolls':
 				this.MH_ft = VUE_trolls;  // id: table#VUE_trolls
 				this.MH_json = json_trolls;
-				MZ_cLigneTroll.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneTroll;
 				break;
 			case 'tresors':
 				this.MH_ft = VUE_tresors;  // id: table#VUE_tresors
 				this.MH_json = json_tresors;
-				MZ_cLigneTresor.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneTresor;
 				break;
 			case 'champignons':
 				this.MH_ft = VUE_champignons;  // id: table#VUE_champignons
 				this.MH_json = json_champignons;
-				MZ_cLigneChampignon.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneChampignon;
 				break;
 			case 'lieux':
 				this.MH_ft = VUE_lieux;  // id: table#VUE_lieux
 				this.MH_json = json_lieux;
-				MZ_cLigneLieu.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneLieu;
 				break;
 			case 'cenotaphes':
 				this.MH_ft = VUE_cenotaphes;  // id: table#VUE_cenotaphes
 				this.MH_json = json_cenotaphes;
-				MZ_cLigneCenotaphe.MZ_oVueJSON = this;
+				this.cLigneClass = MZ_cLigneCenotaphe;
 				break;
 		}
+		this.cLigneClass.MZ_oVueJSON = this;
+		//console.log('load ' + this.nomBase, this.cLigneClass, this.cLigneClass.MZ_oVueJSON, this.cLigneClass.MZ_oVueJSON.nomBase);
 
 		// teste que notre tableau est rempli si le tableau MH est rempli
 		if (this.MH_json === undefined || this.objets !== undefined) {
@@ -13796,15 +13889,15 @@ class MZ_cVueJSON {
 					break;
 			}
 		}
-		if (this.indxTdDist === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Dist'); return; }
-		if (isDesktopView() && this.indxTdAction === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Action'); return; }
-		if (this.indxTdRef === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Ref'); return; }
-		if (this.indxTdNom === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Nom'); return; }
-		if (this.indxTdX === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne X'); return; }
-		if (this.indxTdY === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Y'); return; }
-		if (this.indxTdN === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne N'); return; }
-		if (this.nomBase == "trolls" && this.indxTdGuilde === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Guilde'); return; }
-		if (this.nomBase == "trolls" && this.indxTdNiv === undefined) { logMZ('MZ_cVueJSON ' + this.nomBase + ' pas de colonne Niveau'); return; }
+		if (this.indxTdDist === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Dist'); return; }
+		if (isDesktopView() && this.indxTdAction === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Action'); return; }
+		if (this.indxTdRef === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Ref'); return; }
+		if (this.indxTdNom === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Nom'); return; }
+		if (this.indxTdX === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne X'); return; }
+		if (this.indxTdY === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Y'); return; }
+		if (this.indxTdN === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne N'); return; }
+		if (this.nomBase == "trolls" && this.indxTdGuilde === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Guilde'); return; }
+		if (this.nomBase == "trolls" && this.indxTdNiv === undefined) { logMZ('MZ_cVueJSON_log ' + this.nomBase + ' pas de colonne Niveau'); return; }
 
 		// faire un tableau de <tr> indexé ~~par l'ID~~ (id monstre retiré à cause des fumeux)
 		let rows = [];
@@ -13819,26 +13912,7 @@ class MZ_cVueJSON {
 		for (let idx = 0; idx < this.MH_json.length; idx++) {
 			let oMH_JSON = this.MH_json[idx];
 			let oLigne;
-			switch (this.nomBase) {
-				case 'monstres':
-					oLigne = new MZ_cLigneMonstre();
-					break;
-				case 'trolls':
-					oLigne = new MZ_cLigneTroll();
-					break;
-				case 'tresors':
-					oLigne = new MZ_cLigneTresor();
-					break;
-				case 'champignons':
-					oLigne = new MZ_cLigneChampignon();
-					break;
-				case 'lieux':
-					oLigne = new MZ_cLigneLieu();
-					break;
-				case 'cenotaphes':
-					oLigne = new MZ_cLigneCenotaphe();
-					break;
-			}
+			oLigne = new this.cLigneClass();
 			// trouver le tr correspondant
 			let eTr = rows[idx];
 			if (eTr) {
@@ -13848,28 +13922,9 @@ class MZ_cVueJSON {
 			}
 		}
 
-		switch (this.nomBase) {
-			case 'monstres':
-				MZ_cLigneMonstre.initGlobal();
-				break;
-			case 'trolls':
-				MZ_cLigneTroll.initGlobal();
-				break;
-			case 'tresors':
-				MZ_cLigneTresor.initGlobal();
-				break;
-			case 'champignons':
-				MZ_cLigneChampignon.initGlobal();
-				break;
-			case 'lieux':
-				MZ_cLigneLieu.initGlobal();
-				break;
-			case 'cenotaphes':
-				MZ_cLigneCenotaphe.initGlobal();
-				break;
-		}
+		this.cLigneClass.initGlobal();
 
-		let allLoaded = true;
+		let allMHLoaded = true;
 		for (let o of [
 			MZ_cVueJSON.oMonstres,
 			MZ_cVueJSON.oTrolls,
@@ -13880,11 +13935,11 @@ class MZ_cVueJSON {
 		]) {
 			if (o === undefined || !o.loaded) {
 				if (o) debugMZ("MZ_cVueJSON.load, " + o.nomBase + " not loaded");
-				allLoaded = false;
+				allMHLoaded = false;
 				break;
 			}
 		}
-		if (allLoaded) MZ_cVueJSON.allLoaded();
+		if (allMHLoaded) MZ_cVueJSON.allMHLoaded();
 
 		debugMZ('MZ_cVueJSON_log init ' + this.nomBase + ' terminé, countMH=' + this.MH_json.length + ', countMZ=' + this.objets.length);
 	}
@@ -13926,11 +13981,129 @@ class MZ_cVueJSON {
 		txt += '#FIN ' + this.nomBase.toUpperCase() + "\n";
 		return txt;
 	}
+
+	initFiltre() {
+		// function utilitaire appelée par les classes MZ_cLigneVue
+		this.nomFiltre = 'filtre' + this.nomBase.charAt(0).toUpperCase() + this.nomBase.slice(1);
+		let oConfig = MZ_SauvegardeMH.getZone(this.nomFiltre);
+		if (oConfig === undefined) oConfig = {empty: true};
+		this.eltDivShowFiltre = document.createElement('div');
+		this.eltDivShowFiltre.style.display = 'inline-block';
+		this.eltDivShowFiltre.style.paddingLeft = '7px';
+		this.eltDivShowFiltre.style.paddingRight = '7px';
+		this.eltDivShowFiltre.style.cursor = 'default';
+		this.eltDivShowFiltre.onclick = MZ_cLigneVue.stopPropagation;
+
+		this.eltParamFiltre = document.createElement('div');
+
+		let btn = appendButton(this.eltDivShowFiltre, 'Filtrer');
+		btn.id = 'MZ_btnFiltre' + this.nomBase;
+		let varThis = this;	// pour passer this aux callbacks
+		btn.onclick = function () {
+			varThis.eltParamFiltre.style.display = 'block';
+			btn.style.display = 'none';
+		};
+		if (!oConfig.empty) btn.value = 'Modifier le filtre';
+
+		let eltNav = this.eltDiv.children[2];
+		if ((!eltNav) || eltNav.tagName != 'LABEL') eltNav = this.eltDiv.children[1]; // smartphone
+		if ((!eltNav) || eltNav.tagName != 'LABEL') {
+			warnMZ('filtre ' + this.nomBase + ', impossible de trouver les blocs dans la vue, filtre impossible');
+			return;
+		}
+		eltNav.insertBefore(this.eltDivShowFiltre, null);
+
+		if (this.cLigneClass.nomsFiltres) {
+			this.eltParamFiltre.appendChild(document.createTextNode('CACHER : '));
+			for (let nomfiltre in this.cLigneClass.nomsFiltres) {
+				let oNom = this.cLigneClass.nomsFiltres[nomfiltre];
+				let chk = appendCheckBoxSpan(this.eltParamFiltre, 'MZ_chkMonstre' + nomfiltre, this.cLigneClass.modifFiltre, oNom.libelle).firstChild;
+				if (oNom.infobulle) chk.parentNode.title = oNom.infobulle;
+				if (oConfig[nomfiltre]) chk.checked = true;
+			}
+		}
+
+		let div2 = document.createElement('div');
+		// ce bouton ne sert qu'à faire beau, c'est le onchange de la textbox qui va faire le boulot
+		let btn2 = appendButton(this.eltDivShowFiltre, 'Nom du ' + this.nomBase.substring(0, this.nomBase.length-1)  + ':');
+		btn2.style.marginRight = '3px';
+		div2.appendChild(btn2);
+
+		let textbox = appendTextbox(div2, 'text', 'MZ_Nom' + this.nomFiltre, 15, 30);
+		if (this.cLigneClass.modifFiltre)
+			textbox.onchange = this.cLigneClass.modifFiltre;
+		else
+			textbox.onchange = function() {
+				let oConfig = {};
+				let nom = document.getElementById('MZ_Nom' + varThis.nomFiltre).value;
+				if (nom.trim() != '') {
+					oConfig.nom = nom;
+				} else {
+					oConfig = {empty: true};
+				}
+				varThis.applyFiltre(oConfig);
+
+				//console.log('[MZ] vue set config monstre ' + JSON.stringify(oConfig));
+				if (oConfig.empty) oConfig = undefined;
+				MZ_SauvegardeMH.setZone(varThis.nomFiltre, oConfig);
+			};
+		textbox.style.marginRight = '5px';
+		if (oConfig.nom) textbox.value = oConfig.nom;
+
+		if (this.cLigneClass.initOtherFiltre) this.cLigneClass.initOtherFiltre(div2, oConfig);
+
+		this.eltParamFiltre.appendChild(div2);
+
+		this.eltParamFiltre.style.display = 'none';
+		let divTable = this.eltDiv.children[3];
+		if (!divTable) divTable = this.eltDiv.children[2];	// cas smartphone
+		divTable.insertBefore(this.eltParamFiltre, divTable.firstChild);
+
+		this.applyFiltre(oConfig);
+
+		//console.log('fin MZ_cLigneMonstre.initGlobal');
+	}
+
+	applyFiltre(oConfig) {
+		//Display
+		let eltDisplay = document.getElementById('MZ_disp' + this.nomFiltre);
+		if (oConfig === undefined) oConfig = {empty: true};
+		if (!oConfig.empty) {
+			if (!eltDisplay) {
+				eltDisplay = document.createElement('div');
+				eltDisplay.style.display = 'inline-block';
+				eltDisplay.style.marginLeft = '5px';
+				eltDisplay.id = 'MZ_disp' + this.nomFiltre;
+				this.eltDivShowFiltre.appendChild(eltDisplay);
+			}
+			let tabCaches = [];
+			// pour la beauté de la chose, il y a des blancs insécables
+			if (this.cLigneClass.nomsFiltres) {
+				for (let nomfiltre in this.cLigneClass.nomsFiltres) {
+					let oNom = this.cLigneClass.nomsFiltres[nomfiltre];
+					if (oConfig[nomfiltre]) tabCaches.push(oNom.libelle);
+				}
+			}
+			if (oConfig.nom) tabCaches.push('Nom autre que ' + oConfig.nom);
+			if (this.cLigneClass.displayOtherFiltre)
+				tabCaches = tabCaches.concat(this.cLigneClass.displayOtherFiltre(oConfig));
+			if (eltDisplay.firstChild) eltDisplay.removeChild(eltDisplay.firstChild);
+			eltDisplay.appendChild(document.createTextNode('[MZ] Sont cachés : ' + tabCaches.join(', ')));
+		} else if (eltDisplay) {
+			this.eltDivShowFiltre.removeChild(eltDisplay);
+		}
+		// filtre (spécifique à chaque bloc)
+		if (this.cLigneClass.applyFiltreBloc)
+			this.cLigneClass.applyFiltreBloc(oConfig);
+		else
+			// cas générique, Nom uniquement
+			MZ_cLigneVue.applyFiltreGenerique(oConfig, this.objets);
+	}
 }
 
 class MZ_cLigneVue {
-	// classe "abstraite". Ce sont les classes filles qui sont instanciés
-	id;
+	// classe "abstraite" dont héritent les classes spécifiques pour les monstres, trolls, etc. qui sont instanciées
+	id;	// ID du monstre, du Trõll, etc.
 	// les <td> initiaux (de MH). Ils peuvent bouger si on insère des colonnes mais ces variables restent valides
 	eltTdDist;
 	eltTdAction;
@@ -13942,10 +14115,9 @@ class MZ_cLigneVue {
 	eltTdN;
 	eltTdNiv;
 	// les infos (ajouter des propriétés au fur et à mesure des besoins)
-	nom;
+	nom;	// nom complet, y compris template, âge, marquage pour les monstres, par exemple
 
 	init(MZ_oVueJSON, id, eTr) {
-		//this.MZ_oVueJSON = MZ_oVueJSON;
 		this.id = id;
 		this.eltTdDist = eTr.cells[MZ_oVueJSON.indxTdDist];
 		if (isDesktopView()) { this.eltTdAction = eTr.cells[MZ_oVueJSON.indxTdAction]; }
@@ -13958,6 +14130,94 @@ class MZ_cLigneVue {
 		if (MZ_oVueJSON.indxTdNiv) { this.eltTdNiv = eTr.cells[MZ_oVueJSON.indxTdNiv]; }
 		this.nom = this.eltTdNom.innerText.trim();
 	}
+
+	static stopPropagation(event) {
+		event.cancelBubble=true;
+		if(event.stopPropagation) event.stopPropagation();
+		return false;
+	}
+
+	static ajoutFiltreNombre(parent, id, onChange, value, length) {
+		let input = document.createElement('input');
+		if (id) input.id = id;
+		input.type = 'number';
+		input.onchange = onChange;
+		if (length) input.size = length;
+		else input.size = 3;
+		if (value) input.value = value;
+		parent.appendChild(input);
+		return input;
+	}
+
+	static ajoutFiltreDropdown(parent, id, onChange, liste, selected) {
+		let select = document.createElement('select');
+		if (id) select.id = id;
+		select.onchange = onChange;
+		appendOption(select, 0, '');
+		liste.forEach((f) => {
+			let opt = appendOption(select, f, f);
+			if (f == selected) opt.selected = true;
+		});
+		parent.appendChild(select);
+		return select;
+	}
+
+	// version de applyFiltre génétique qui ne traite que le filtre sur le nom
+	static applyFiltreGenerique(oConfig, objets) {
+		// Filtre
+		if (oConfig.nom) oConfig.nom = oConfig.nom.toLowerCase();
+		for (let oLigne of objets) {
+			let cache = false;
+			if ((!cache) && oConfig.nom) {
+				if (oLigne.nom.toLowerCase().indexOf(oConfig.nom) == -1) cache = true;
+			}
+			let prevDisplay = oLigne.eltTdDist.parentNode.style.display;
+			//console.log('applyFiltreGenerique nom=' + oLigne.nom + ', cache=' + cache);
+			if (cache && prevDisplay != 'none')
+				oLigne.eltTdDist.parentNode.style.display = 'none';
+			else if ((!cache) && prevDisplay == 'none')
+				oLigne.eltTdDist.parentNode.style.display = 'table-row';
+		}
+	}
+
+/* à supprimer
+		let nivMin = parseInt(document.getElementById('MZ_nivMinMonstres').value, 10);
+		if (!isNaN(nivMin)) {
+			oConfig.nivMin = nivMin;
+			bSomething = true;
+		} else delete oConfig.nivMin;
+		let nivMax = parseInt(document.getElementById('MZ_nivMaxMonstres').value, 10);
+		if (!isNaN(nivMax)) {
+			if (oConfig.nivMin !== undefined && oConfig.nivMin > nivMax) {
+				oConfig.nivMax = oConfig.nivMin;
+				oConfig.nivMin = nivMax;
+			} else {
+				oConfig.nivMax = nivMax;
+			}
+			bSomething = true;
+		} else delete oConfig.nivMax;
+
+		let nom = document.getElementById('MZ_Nom' + MZ_cLigneMonstre.MZ_oVueJSON.nomFiltre).value;
+		if (nom.trim() != '') {
+			oConfig.nom = nom;
+			bSomething = true;
+		} else delete oConfig.nom;
+		let famille = document.getElementById('MZ_FamilleMonstres').value;
+		if (famille == 'Humanoïde') famille = 'Humanoide';	// **sight**
+		if (famille && famille != '0') {	// firefox nous donne "0" dans le texte de la listbox est vide
+			oConfig.famille = famille;
+			bSomething = true;
+		} else delete oConfig.famille;
+
+		if (!bSomething) oConfig = {empty: true};
+
+		MZ_cLigneMonstre.MZ_oVueJSON.applyFiltre(oConfig);
+
+		//console.log('[MZ] vue set config monstre ' + JSON.stringify(oConfig));
+		if (oConfig.empty) oConfig = undefined;
+		MZ_SauvegardeMH.setZone(MZ_cLigneMonstre.MZ_oVueJSON.nomFiltre, oConfig);
+	}
+	*/
 }
 
 class MZ_cLigneMonstre extends MZ_cLigneVue {
@@ -13965,14 +14225,30 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 	// c'est ici qu'on met tout le code spécifique aux monstres
 	static lastIndexSent = -1;
 	static isCDMsRetrieved = false;
+	// filtre
+	static checkBoxGowapsA;
+	static checkBoxGowapsS;
+	static checkBoxEngages;
+	static checkBoxNonmiss;
+	static listPosTroll;
+	static nomsFiltres = {
+		gowapA: {libelle: 'Les Gowaps Apprivoisés'},
+		gowapS: {libelle: 'Les Gowaps Sauvages'},
+		engage: {libelle: 'Les Engagés', infobulle: 'Les monstres ayant au moins un Trõll sur la même case'},
+		nonmis: {libelle: 'Les pas-mission', infobulle : "Ne garde que les monstres cibles d'une étape de mission active"},
+	};
+	static listeFamille = ['Animal', 'Insecte', 'Démon', 'Humanoide', 'Monstre', 'Mort-Vivant'];
+	static listeFamilleAvecTrema = ['Animal', 'Insecte', 'Démon', 'Humanoïde', 'Monstre', 'Mort-Vivant'];
+	static nbRetry = 0;
 
 	// zone MZ - niveaux
 	static colNiveauDone;
 	eltTdNiveau;	// le TD est créé même pour les lignes où le niveau n'a pas été obtenu
 	infoMZ;
-	nivMZ_no;	// par exemple gowaps
-	nivMZDone;
+	nivMZ_no;	// vrai par exemple pour les gowaps
+	//nivMZDone;
 	cssMZDone;
+	cibleMission;
 
 	insertColumn(param) {
 		// c'est prévu pour travailler sur plusieurs colonnes. Le paramètre dit dans quel cas on est
@@ -13989,11 +14265,270 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 
 	static initGlobal() {
 		// cette fonction est appelée une fois que les objects dérivés de MZ_cLigneMonstre ont été créés
-		// todo ne lancer sendAJAXCdMRequest que si la case 'effacer les niveaux' n'est pas cochée
 		MZ_cLigneMonstre.sendAJAXCdMRequest();
 		MZ_Tactique.initPopup();
 		MZ_cColorizeLabels.processVue(MZ_cLigneMonstre.MZ_oVueJSON, 'monstres');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneMonstre.MZ_oVueJSON);
+
+		MZ_cLigneMonstre.MZ_oVueJSON.initFiltre();
+
+		/* peut être pas. En attente de voir si c'est fait coté MH
+		if (getTalent("Projectile Magique")) {
+			computeActionDistante(0,
+				getPortee(
+					parseInt(MY_getValue(`${numTroll}.caracs.vue`)) +
+					parseInt(MY_getValue(`${numTroll}.caracs.vue.bm`))
+				),
+				{ Monstres: 1, Trolls: 1 },
+				'Attaquer',
+				`${MHicons}S_Fire05.png`,
+				'Cible à portée de Projo'
+			);
+		}
+		if (getTalent("Charger")) {
+			computeActionDistante(1,
+				getPortee(
+					Math.ceil(MY_getValue(`${numTroll}.caracs.pv`) / 10) +
+					MY_getValue(`${numTroll}.caracs.regeneration`)
+				),
+				{ Monstres: 1, Trolls: 1 },
+				'Attaquer',
+				`${MHicons}E_Metal09.png`,
+				'Cible à portée de Charge'
+			);
+		}
+		if (getTalent("Télékinésie")) {
+			computeActionDistante(0,
+				Math.floor((
+					parseInt(MY_getValue(`${numTroll}.caracs.vue`)) +
+					parseInt(MY_getValue(`${numTroll}.caracs.vue.bm`))
+				) / 2),
+				{ Tresors: 1 },
+				'Telek',
+				`${MHicons}S_Magic04.png`,
+				'Trésor à portée de Télékinésie'
+			);
+		}
+		if (getTalent("Lancer de Potions")) {
+			computeActionDistante(0,
+				2 + Math.floor((
+					parseInt(MY_getValue(`${numTroll}.caracs.vue`)) +
+					parseInt(MY_getValue(`${numTroll}.caracs.vue.bm`))
+				) / 5),
+				{ Monstres: 1, Trolls: 1 },
+				'self',
+				`${MHicons}P_Red01.png`,
+				'Cible à portée de Lancer de Potions'
+			);
+		}
+		*/
+		// diplo
+		if (isDiploRaw) computeDiplo();
+		// ceci permet de retirer la diplo (non implémenté dans la nouvelle vue)
+		let aAppliquer = Diplo;
+		if (false) {//checkBoxDiplo.checked) {
+			// Pour retour à l'affichage basique sur désactivation de la diplo
+			aAppliquer = {
+				Guilde: {},
+				Troll: {},
+				Monstre: {}
+			};
+		}
+		for (let oLigne of MZ_cVueJSON.oMonstres.objets) {
+			let nom =oLigne.nom.toLowerCase();
+			let tr = oLigne.eltTdNom.parentNode;
+			if (aAppliquer.Monstre[oLigne.id]) {
+				tr.className = '';
+				tr.style.backgroundColor = aAppliquer.Monstre[oLigne.id].couleur;
+				tr.diploActive = 'oui';
+				let descr = aAppliquer.Monstre[oLigne.id].titre;
+				if (descr) {
+					oLigne.eltTdNom.title = descr;
+				}
+			} else if (aAppliquer.mythiques &&
+					nom.match(/^[^\[]*liche/) ||
+					nom.match(/^[^\[]*hydre/) ||
+					nom.match(/^[^\[]*balrog/) ||
+					nom.match(/^[^\[]*beholder/) ||
+					nom.match(/^[^\[]*sidoine/)) {
+				tr.className = '';
+				tr.style.backgroundColor = aAppliquer.mythiques;
+				tr.diploActive = 'oui';
+				oLigne.eltTdNom.title = 'Monstre Mythique';
+			} else {
+				tr.className = 'mh_tdpage';
+				tr.diploActive = '';
+			}
+		}
+	}
+
+	static initOtherFiltre(div2, oConfig) {
+		appendText(div2, 'Niveau Min :');
+		let textboxNiveauMin = MZ_cLigneVue.ajoutFiltreNombre(div2, 'MZ_nivMinMonstres', MZ_cLigneMonstre.modifFiltre, oConfig.nivMin);
+		textboxNiveauMin.style.marginRight = '5px';
+		textboxNiveauMin.style.marginLeft = '3px';
+		appendText(div2, 'Niveau Max :');
+		let textboxNiveauMax = MZ_cLigneVue.ajoutFiltreNombre(div2, 'MZ_nivMaxMonstres', MZ_cLigneMonstre.modifFiltre, oConfig.nivMax);
+		textboxNiveauMax.style.marginRight = '5px';
+		textboxNiveauMax.style.marginLeft = '3px';
+		appendText(div2, 'Famille :');
+		let comboBoxFamille = MZ_cLigneVue.ajoutFiltreDropdown(div2, 'MZ_FamilleMonstres', MZ_cLigneMonstre.modifFiltre
+			, MZ_cLigneMonstre.listeFamilleAvecTrema
+			, oConfig.famille);
+		comboBoxFamille.style.marginRight = '5px';
+	}
+
+	static modifFiltre() {
+		let oConfig = {};
+		let bSomething = false;
+		for (let nomfiltre in MZ_cLigneMonstre.nomsFiltres) {
+			let oNom = MZ_cLigneMonstre.nomsFiltres[nomfiltre];
+			if (document.getElementById('MZ_chkMonstre' + nomfiltre).checked) {
+				oConfig[nomfiltre] = true;
+				bSomething = true;
+			} else delete oConfig[nomfiltre];
+		}
+
+		let nivMin = parseInt(document.getElementById('MZ_nivMinMonstres').value, 10);
+		if (!isNaN(nivMin)) {
+			oConfig.nivMin = nivMin;
+			bSomething = true;
+		} else delete oConfig.nivMin;
+		let nivMax = parseInt(document.getElementById('MZ_nivMaxMonstres').value, 10);
+		if (!isNaN(nivMax)) {
+			if (oConfig.nivMin !== undefined && oConfig.nivMin > nivMax) {
+				oConfig.nivMax = oConfig.nivMin;
+				oConfig.nivMin = nivMax;
+			} else {
+				oConfig.nivMax = nivMax;
+			}
+			bSomething = true;
+		} else delete oConfig.nivMax;
+
+		let nom = document.getElementById('MZ_Nom' + MZ_cLigneMonstre.MZ_oVueJSON.nomFiltre).value;
+		if (nom.trim() != '') {
+			oConfig.nom = nom;
+			bSomething = true;
+		} else delete oConfig.nom;
+		let famille = document.getElementById('MZ_FamilleMonstres').value;
+		if (famille == 'Humanoïde') famille = 'Humanoide';	// **sight**
+		if (famille && famille != '0') {	// firefox nous donne "0" dans le texte de la listbox est vide
+			oConfig.famille = famille;
+			bSomething = true;
+		} else delete oConfig.famille;
+
+		if (!bSomething) oConfig = {empty: true};
+
+		MZ_cLigneMonstre.MZ_oVueJSON.applyFiltre(oConfig);
+
+		//console.log('[MZ] vue set config monstre ' + JSON.stringify(oConfig));
+		if (oConfig.empty) oConfig = undefined;
+		MZ_SauvegardeMH.setZone(MZ_cLigneMonstre.MZ_oVueJSON.nomFiltre, oConfig);
+	}
+
+	static applyFiltreNu() {
+		MZ_cLigneMonstre.MZ_oVueJSON.applyFiltre(MZ_SauvegardeMH.getZone('filtreMonstres'));
+	}
+
+	static displayOtherFiltre(oConfig) {
+		let tabCaches = [];
+		if (oConfig.famille) tabCaches.push('Famille autre que ' + oConfig.famille);
+		let msgNiv = [];
+		if (oConfig.nivMin !== undefined) msgNiv.push('<' + oConfig.nivMin);
+		if (oConfig.nivMax !== undefined) msgNiv.push('>' + oConfig.nivMax);
+		if (msgNiv.length > 0) tabCaches.push('Niveau ' + msgNiv.join(' ou '));
+		return tabCaches;
+	}
+
+	static applyFiltreBloc(oConfig) {
+		// Filtre
+		let bHideEg = oConfig.engage;
+		if (bHideEg && ((!MZ_cVueJSON.oTrolls) || MZ_cVueJSON.oTrolls.objets === undefined)) {
+			// Ça arrive quand on applique le filtre ici avant que la page ait reçu le retour JSON MH pour les Trolls
+			// on relancera quand tout sera reçu
+			if (MZ_cLigneMonstre.nbRetry++ < 5)
+				MZ_cVueJSON.registerCallback(MZ_cLigneMonstre.applyFiltreNu);
+			else
+				logMZ('Plus de 5 retry pour le filtrage des monstres')
+			// on continue en ignorant le filtre sur les engagés
+			bHideEg = false;
+		}
+		if (oConfig.nom) oConfig.nom = oConfig.nom.toLowerCase();
+		let nivMin = oConfig.nivMin;
+		let nivMax = oConfig.nivMax;
+		let nonmis = oConfig.nonmis;
+		let famille = oConfig.famille;
+		if ((nivMin !== undefined || nivMax !== undefined || nonmis || famille)
+			&& !(MZ_cLigneMonstre.isCDMsRetrieved)) {
+			if (MZ_cLigneMonstre.nbRetry++ < 5)	// protection
+				MZ_cVueJSON.registerCallbackMZ(MZ_cLigneMonstre.applyFiltreNu);
+			else
+				logMZ('Plus de 5 retry pour le filtrage des monstres')
+			// on continue en ignorant ces filtres
+			nivMin = undefined;
+			nivMax = undefined;
+			nonmis = false;
+			famille = undefined;
+		}
+		for (let oMonstre of MZ_cVueJSON.oMonstres.objets) {
+			let cache = (oConfig.gowapA && oMonstre.nom.indexOf('Gowap Apprivoisé') != -1)
+					|| (oConfig.gowapS && oMonstre.nom.indexOf('Gowap Sauvage') != -1);
+			if (bHideEg && !cache) {
+				if (MZ_cLigneMonstre.listPosTroll === undefined) {
+					MZ_cLigneMonstre.listPosTroll = [];	// array car N ne peut pas être négatif
+					for (let oTroll of MZ_cVueJSON.oTrolls.objets) {
+						let xt = parseInt(oTroll.eltTdX.innerText, 10);
+						let yt = parseInt(oTroll.eltTdY.innerText, 10);
+						let nt = parseInt(oTroll.eltTdN.innerText, 10);
+						if (!MZ_cLigneMonstre.listPosTroll[nt]) MZ_cLigneMonstre.listPosTroll[nt] = {};	// objet à cause des x négatifs
+						if (!MZ_cLigneMonstre.listPosTroll[nt][xt]) MZ_cLigneMonstre.listPosTroll[nt][xt] = {};
+						MZ_cLigneMonstre.listPosTroll[nt][xt][yt] = 1;
+					}
+				}
+				let x = parseInt(oMonstre.eltTdX.innerText, 10);
+				let y = parseInt(oMonstre.eltTdY.innerText, 10);
+				let n = parseInt(oMonstre.eltTdN.innerText, 10);
+				if (MZ_cLigneMonstre.listPosTroll[n]
+					&& MZ_cLigneMonstre.listPosTroll[n][x]
+					&& MZ_cLigneMonstre.listPosTroll[n][x][y]) cache = true;
+			}
+			if ((!cache) && oConfig.nom) {
+				if (oMonstre.nom.toLowerCase().indexOf(oConfig.nom) == -1) cache = true;
+			}
+			if ((!cache)
+				&& nivMin !== undefined
+				&& oMonstre.infoMZ 
+				&& oMonstre.infoMZ.niv 
+				&& oMonstre.infoMZ.niv.max
+				&& oMonstre.infoMZ.niv.max < nivMin) cache = true;
+			if ((!cache)
+				&& nivMax !== undefined
+				&& oMonstre.infoMZ
+				&& oMonstre.infoMZ.niv
+				&& oMonstre.infoMZ.niv.min
+				&& oMonstre.infoMZ.niv.min > nivMax) cache = true;
+			if ((!cache)
+				&& nonmis
+				&& !oMonstre.cibleMission) cache = true;
+			if ((!cache)
+				&& famille
+				&& oMonstre.infoMZ
+				&& oMonstre.infoMZ.fam
+				&& famille.toLowerCase() != oMonstre.infoMZ.fam.toLowerCase()) cache = true;
+			if ((!cache)
+				&& famille) {
+					let indx = oMonstre.nom.indexOf('Flou');
+					if (indx != -1) {
+						let nomSansFlou = oMonstre.nom.substring(0, indx).trim();
+						if ((MZ_cLigneMonstre.listeFamille.includes(nomSansFlou)) && nomSansFlou != famille) cache = true;
+					}
+				}
+			let prevDisplay = oMonstre.eltTdDist.parentNode.style.display;
+			if (cache && prevDisplay != 'none')
+				oMonstre.eltTdDist.parentNode.style.display = 'none';
+			else if ((!cache) && prevDisplay == 'none')
+				oMonstre.eltTdDist.parentNode.style.display = 'table-row';
+		}
 	}
 
 	static sendAJAXCdMRequest() {
@@ -14283,6 +14818,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 						myURL = `${URL_MZimg}mission.png`;
 					}
 					oMonstre.eltTdNom.appendChild(createImage(myURL, mess));
+					oMonstre.cibleMission = true;
 				}
 
 				/* Roule' à étudier plus tard, cette différence de style selon la diplo...
@@ -14350,6 +14886,14 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 		} else if (eltBoutonSuite) {
 			eltBoutonSuite.parentNode.removeChild(eltBoutonSuite);
 		}
+		// appel des callback
+		for (let callback of MZ_cVueJSON.callbacksFinMZ) {
+			try {
+				callback();
+			} catch (exc) {
+				logMZ("MZ_cVueJSON Erreur à l'appel d'une callback", exc);
+			}
+		}
 	}
 }
 
@@ -14361,6 +14905,8 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	static refTr;
 	eltTdBtPV;	// le TD est créé même pour les lignes où les PV ne sont pas dispo
 	eltTdBtPA;	// le TD est créé même pour les lignes où les PA ne sont pas dispo
+	eltEnvoi;
+	idGuilde;
 
 	init(MZ_oVueJSON, id, eTr) {
 		this.id = id;
@@ -14433,6 +14979,9 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 			case 2:
 				this.insertColumnBtPA();
 				break;
+			case 3:
+				this.insertColumnEnvoi();
+				break;
 		}
 	}
 
@@ -14444,6 +14993,26 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	insertColumnBtPA() {
 		this.eltTdBtPA = insertTdText(this.eltTdGuilde, '');
 		this.eltTdBtPA.style.display = 'table-cell';
+	}
+
+	insertColumnEnvoi() {
+		this.eltEnvoi = insertTd(this.eltTdNom);
+		this.eltEnvoi.style.display = 'table-cell';
+		let input = document.createElement('input');
+		input.type = 'checkbox';
+		this.eltEnvoi.appendChild(input);
+	}
+
+	getGuildeID() {
+		if (this.idGuilde !== undefined) return idGuilde;
+		let eltA = this.eltTdNom.getElementsByTagName('a')[0];
+		this.idGuilde = 0;
+		if (eltA) {
+			let href = eltA.href;
+			this.idGuilde = parseInt(href.substring(href.indexOf('(') + 1, href.indexOf(',')));
+			if (isNaN(this.idGuilde)) this.idGuilde = 0;
+		}
+		return this.idGuilde;
 	}
 
 	static initGlobal() {
@@ -14477,6 +15046,150 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 		MZ_cLigneTroll.processPX();
 		MZ_cColorizeLabels.processVue(MZ_cLigneTroll.MZ_oVueJSON, 'trolls');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTroll.MZ_oVueJSON);
+		MZ_cLigneTroll.MZ_oVueJSON.initFiltre();
+
+		// diplo
+		if (isDiploRaw) computeDiplo();
+		// ceci permet de retirer la diplo (non implémenté dans la nouvelle vue)
+		let aAppliquer = Diplo;
+		if (false) {//checkBoxDiplo.checked) {
+			// Pour retour à l'affichage basique sur désactivation de la diplo
+			aAppliquer = {
+				Guilde: {},
+				Troll: {},
+				Monstre: {}
+			};
+		}
+		for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
+			let idG = oLigne.getGuildeID();
+			let tr = oLigne.eltTdNom.parentNode;
+			// logMZ('diplo i=' + i + ', troll=' + idT + ', guilde=' + idG + ', HTML=' + tr.innerHTML);
+			if (aAppliquer.Troll[oLigne.id]) {
+				tr.classList.remove('mh_tdpage');
+				let descr = aAppliquer.Troll[oLigne.id].titre;
+				if (descr) {
+					oLigne.eltTdNom.title = descr;
+				}
+				tr.style.backgroundColor = aAppliquer.Troll[oLigne.id].couleur;
+			} else if (idG > 0 && aAppliquer.Guilde[idG]) {
+				tr.classList.remove('mh_tdpage');
+				let descr = aAppliquer.Guilde[idG].titre;
+				if (descr) {
+					oLigne.eltTdNom.title = descr;
+				}
+				tr.style.backgroundColor = aAppliquer.Guilde[idG].couleur;
+			} else {
+				tr.classList.add('mh_tdpage');	// ne fait rien si déjà là
+				oLigne.eltTdNom.removeAttribute('title');
+			}
+		}
+	}
+
+	static initOtherFiltre(div2, oConfig) {
+		// ce bouton ne sert qu'à faire beau, c'est le onchange de la textbox qui va faire le boulot
+		let btnGuilde = appendButton(div2, 'Nom de la guilde:');
+		btnGuilde.style.marginRight = '3px';
+
+		let txtboxGuilde = appendTextbox(div2, 'text', 'MZ_GuileTroll', 15, 30);
+		txtboxGuilde.onchange = MZ_cLigneTroll.modifFiltre;
+		txtboxGuilde.style.marginRight = '5px';
+		if (oConfig.guilde) txtboxGuilde.value = oConfig.guilde;
+
+		let btnEnvoi = appendButton(MZ_cLigneTroll.MZ_oVueJSON.eltDivShowFiltre, 'Envoyer...');
+		btnEnvoi.style.marginLeft = '5px';
+		btnEnvoi.onclick = function() {
+			// Ajout de la colonne des CheckBoxes
+			MZ_cLigneTroll.MZ_oVueJSON.insertColumn(MZ_cLigneTroll.MZ_oVueJSON.indxTdNom, '', '17px', 3);
+			// Ajout des boutons
+			let btnPX = insertButton(btnEnvoi, 'Envoyer des PX', MZ_cLigneTroll.envoi);
+			btnPX.style.marginLeft = '5px';
+			btnPX.setAttribute('data-role', 'px');
+			let btnMP = insertButton(btnEnvoi, 'Envoyer un MP', MZ_cLigneTroll.envoi);
+			btnMP.style.marginLeft = '5px';
+			btnMP.setAttribute('data-role', 'mp');
+			btnEnvoi.parentNode.removeChild(btnEnvoi);
+		};
+	}
+
+	static envoi(e) {
+		// liste des ID
+		let listID = [];
+		for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
+			let td = oLigne.eltEnvoi;
+			if (!td) continue;
+			if (!td.firstChild) continue;
+			if (!td.firstChild.checked) continue;
+			listID.push(oLigne.id);
+		}
+		if (listID.length == 0) {
+			alert('[MZ] Il faut cocher des cases pour  choisir les Trõlls destinataires');
+			return;
+		}
+		switch (e.target.getAttribute('data-role')) {
+			case 'px':
+				window.open(`./Play_a_Action.php?type=A&id=9&dest=${listID.join(',')}`, 'Contenu');
+				break;
+			case 'mp':
+				window.open(`../Messagerie/MH_Messagerie.php?cat=3&dest=${listID.join(',')}`, 'Contenu');
+				break;
+			default:
+				warnMZ("Mauvais mode d'envoi", e.target);
+		}
+	}
+
+	static modifFiltre() {
+		let oConfig = {};
+		let bSomething = false;
+		let nom = document.getElementById('MZ_Nom' + MZ_cLigneTroll.MZ_oVueJSON.nomFiltre).value;
+		if (nom.trim() != '') {
+			oConfig.nom = nom;
+			bSomething = true;
+		} else delete oConfig.nom;
+		let guilde = document.getElementById('MZ_GuileTroll').value.trim();
+		if (guilde != '') {
+			oConfig.guilde = guilde;
+			bSomething = true;
+		} else delete oConfig.guilde;
+
+		if (!bSomething) oConfig = {empty: true};
+
+		MZ_cLigneTroll.MZ_oVueJSON.applyFiltre(oConfig);
+
+		//console.log('[MZ] filtre vue set config troll ' + JSON.stringify(oConfig));
+		if (oConfig.empty) oConfig = undefined;
+		MZ_SauvegardeMH.setZone(MZ_cLigneTroll.MZ_oVueJSON.nomFiltre, oConfig);
+	}
+
+	static displayOtherFiltre(oConfig) {
+		let tabCaches = [];
+		if (oConfig.guilde) tabCaches.push('Guilde autre que ' + oConfig.guilde);
+		let msgNiv = [];
+		if (oConfig.nivMin !== undefined) msgNiv.push('<' + oConfig.nivMin);
+		if (oConfig.nivMax !== undefined) msgNiv.push('>' + oConfig.nivMax);
+		if (msgNiv.length > 0) tabCaches.push('Niveau ' + msgNiv.join(' ou '));
+		return tabCaches;
+	}
+
+	static applyFiltreBloc(oConfig) {
+		// Filtre
+		if (oConfig.nom) oConfig.nom = oConfig.nom.toLowerCase();
+		if (oConfig.guilde) oConfig.guilde = oConfig.guilde.toLowerCase();
+		for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
+			let cache = false;
+			if ((!cache) && oConfig.nom) {
+				if (oLigne.nom.toLowerCase().indexOf(oConfig.nom) == -1) cache = true;
+			}
+			if ((!cache) && oConfig.guilde) {
+				let guilde = oLigne.eltTdGuilde.innerText;
+				if (guilde.toLowerCase().indexOf(oConfig.guilde) == -1) cache = true;
+			}
+			let prevDisplay = oLigne.eltTdDist.parentNode.style.display;
+			//console.log('applyFiltreGenerique nom=' + oLigne.nom + ', cache=' + cache);
+			if (cache && prevDisplay != 'none')
+				oLigne.eltTdDist.parentNode.style.display = 'none';
+			else if ((!cache) && prevDisplay == 'none')
+				oLigne.eltTdDist.parentNode.style.display = 'table-row';
+		}
 	}
 
 	static processPX() {
@@ -14549,6 +15262,7 @@ class MZ_cLigneTresor extends MZ_cLigneVue {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
 		MZ_cColorizeLabels.processVue(MZ_cLigneTresor.MZ_oVueJSON, 'tresors');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneTresor.MZ_oVueJSON);
+		MZ_cLigneTresor.MZ_oVueJSON.initFiltre();
 	}
 }
 
@@ -14567,6 +15281,7 @@ class MZ_cLigneLieu extends MZ_cLigneVue {
 		// cette fonction est appelée un fois que les objects dérivés de MZ_cLigneMonstre ont été créés
 		MZ_cColorizeLabels.processVue(MZ_cLigneLieu.MZ_oVueJSON, 'lieux');
 		MZ_cHighlightSameXYN.processVue(MZ_cLigneLieu.MZ_oVueJSON);
+		MZ_cLigneLieu.MZ_oVueJSON.initFiltre();
 	}
 }
 
@@ -14690,7 +15405,7 @@ function do_vue_html() {
 		// gath: on garde le message sympa plutôt qu'ajouter un '- Plus d'infos
 		// en console (F12)' sans ame !
 		avertissement(`Une erreur est survenue. Seriez-vous sous l'effet d'un Fumeux ?`);
-		logMZ('do_vue', exc);
+		logMZ('do_vue_log', exc);
 	}
 }
 
@@ -15355,6 +16070,7 @@ function minParPVsac(fat, bm) {
 	// fatigue = 'fat', sans et avec un bm de fatigue = 'bm'
 	let out = [];
 	out[0] = fat > 4 ? Math.floor(120 / (fat * (1 + Math.floor(fat / 10)))) : 30;
+	if (out[0] == 0) out[0] = 1;
 	if (bm && bm > 0) {
 		let totalfat = fat + bm;
 		// en principe inutile pour des bm fat >= 15 mais bon...
@@ -15475,10 +16191,12 @@ function setAccel() {
 		skip = true;
 	}
 
+	/* désactivé, ça n'arrive plus
 	if (!skip && fat > 30) {
 		appendText(insertPt, 'Vous êtes trop fatigué pour accélérer.');
 		skip = true;
 	}
+	// */
 
 	// Setup lastDLAZone
 	if (overDLA) {
@@ -15544,7 +16262,6 @@ function setAccel() {
 	let nbsp = '\u00A0';
 	let desktopView = isDesktopView();
 	if (desktopView) {
-		appendHr(insertPt);
 		table = document.createElement('table');
 		table.className = 'mh_tdborder';
 		table.border = 0;
@@ -15553,17 +16270,18 @@ function setAccel() {
 		table.style.textAlign = "center";
 		tbody = document.createElement('tbody');
 		table.appendChild(tbody);
-		insertPt.appendChild(table);
+		tr = document.createElement('tr');
+		document.querySelector('#pos').insertBefore(table, null);
 		ligneTour = appendTr(tbody, 'mh_tdtitre');
 		ligneTour.style.fontWeight = "bold";
-		let td = appendTdText(ligneTour, 'Tour :', true);
+		let td = appendTdText(ligneTour, 'Tour :', true);
 		td.align = 'left';
 		ligneFat = appendTr(tbody, 'mh_tdpage');
-		td = appendTdText(ligneFat, 'Fatigue :', true);
+		td = appendTdText(ligneFat, 'Fatigue :', true);
 		td.className = 'mh_tdtitre';
 		td.align = 'left';
 		ligneMin = appendTr(tbody, 'mh_tdpage');
-		td = appendTdText(ligneMin, '1 PV =', true);
+		td = appendTdText(ligneMin, '1 PV =', true);
 		td.className = 'mh_tdtitre';
 		td.align = 'left';
 	} else {
@@ -17043,6 +17761,7 @@ function testBoolLocalStorage() {
 }
 
 /* --------------------------------- Création liste trolligion --------------------------------- */
+/* désactivé, la structure de la page MH a changé
 function export_trolligion() {
 	let txt = '';
 	try {
@@ -17254,6 +17973,7 @@ function do_trolligion() {
 	divpopup.appendChild(img);
 	document.body.appendChild(divpopup);
 }
+*/
 
 function do_memoPA() {
 	let t = document.body.innerText;
@@ -17263,6 +17983,96 @@ function do_memoPA() {
 	if (m && m.length > 1) {
 		let pa = parseInt(m[1], 10);
 		if (numTroll !== undefined && !isNaN(pa)) MY_setValue(numTroll + '.PA', pa);
+	}
+}
+
+class MZ_SauvegardeMH {
+	// gestion de la sauvegarde de paramètres dans MH
+	// ne fonctionne que si MZ est utilisé en "intégré"
+	// tant pis pour les autres
+
+	// Vocabulaire
+	// - zone : un grand groupe de paramètres. En pratique une entrée dans l'objet MH_mountyzilla_json
+
+	static oConfig;
+
+	static init() {
+		if (MZ_SauvegardeMH.oConfig !== undefined) {
+			// init déjà faire
+			return;
+		}
+		if (typeof MH_mountyzilla_json === 'undefined') {
+			// mode non intégré, la config ne sera pas sauvée
+			MZ_SauvegardeMH.oConfig = {};
+			return;
+		}
+		if (MH_mountyzilla_json === null) {
+			MZ_SauvegardeMH.oConfig = {};
+			return;
+		}
+		try {
+			MZ_SauvegardeMH.oConfig = JSON.parse(MH_mountyzilla_json);
+		} catch (exc) {
+			MZ_SauvegardeMH.oConfig = {};
+			logMZ('Erreur au parsing de MH_mountyzilla_json : ' + MH_mountyzilla_json);
+		}
+	}
+
+	static saveIntoMH() {
+		let url = window.location.origin;	// https://games.mountyhall.com
+		url += '/mountyhall/MH_PageUtils/Services/json_extension.php';
+		url += '?mode=set&ext=mountyzilla'
+		let request = new XMLHttpRequest();
+		request.open('POST', url);
+		request.onreadystatechange = function () {
+			if (request.readyState != 4) {
+				return;
+			}
+			if (request.error) {
+				logMZ('erreur sauvegarde config dans MH : ' + request.error);
+				return;
+			}
+		};
+		request.send(MZ_SauvegardeMH.escapeUnicode(JSON.stringify(MH_mountyzilla_json)));
+	}
+
+	static setZone(zone, value, no_save) {
+		// écrase toute une zone dans l'objet MH_mountyzilla_json
+		// no_save pour reporter à plus tard l'envoi à MH
+		MZ_SauvegardeMH.init();
+		if (!MZ_SauvegardeMH.oConfig) MZ_SauvegardeMH.oConfig = {};
+		if (value === undefined)
+			delete MZ_SauvegardeMH.oConfig[zone];
+		else
+			MZ_SauvegardeMH.oConfig[zone] = value;
+		if (typeof MH_mountyzilla_json !== 'undefined') {
+			MH_mountyzilla_json = MZ_SauvegardeMH.oConfig;
+			if (!no_save) MZ_SauvegardeMH.saveIntoMH();
+		}
+	}
+
+	static getZone(zone) {
+		MZ_SauvegardeMH.init();
+		if (!MZ_SauvegardeMH.oConfig) return undefined;
+		return MZ_SauvegardeMH.oConfig[zone];
+	}
+
+	static setParam(zone, key, value, no_save) {
+		// écrase une entrée d'une zone. Suppose que la zone est un objet
+		let oZone = getZone(zone);
+		if (!oZone) oZone = {};
+		oZone[key] = value;
+		setZone(zone, oZone, no_save);
+	}
+
+	static getParam(zone, key) {
+		let oZone = getZone(zone);
+		if (!oZone) return;
+		return oZone[key];
+	}
+
+	static escapeUnicode(str) { // https://stackoverflow.com/questions/62449035/escape-all-unicode-non-ascii-characters-in-a-string-with-javascript
+	   return [...str].map(c => /^[\x00-\x7F]$/.test(c) ? c : c.split("").map(a => "\\u" + a.charCodeAt().toString(16).padStart(4, "0")).join("")).join("");
 	}
 }
 
@@ -17396,6 +18206,7 @@ function MZ_doSearchCompoTanieres(event) {
 		let tabQualite = ['', 'Très Bonne', 'Bonne', 'Moyenne', 'Mauvaise', 'Très Mauvaise'];
 		for (let compo in oCompos) {
 			tabTri.push(compo);
+			//console.log('push1 compo ' + compo);
 			let oQualites = oCompos[compo];
 			for (let qualite of tabQualite) {
 				let n = oQualites[qualite];
@@ -17408,7 +18219,9 @@ function MZ_doSearchCompoTanieres(event) {
 			displayTitre(`Vous avez ${nTotal} composants de ${oInfo.monstre} en tanière`, 'blue');
 		let compoLC = oInfo.composant.toLowerCase();
 		if (!tabTri.includes(compoLC)) {
-			tabTri.push(oInfo.compoLC);
+			tabTri.push(compoLC);
+			oCompos[compoLC] = {nom: oInfo.composant};
+			//console.log('push2 compo ' + compoLC);
 		}
 		tabTri.sort();
 		eTr = document.createElement('tr');
@@ -17433,9 +18246,9 @@ function MZ_doSearchCompoTanieres(event) {
 				eTd.className = 'mh_tdpage';
 				if (oInfo.composant.toLowerCase() == compo && oInfo.qualite == qualite) {
 					eTd.style.background = 'white';
-				} else {
 				}
 				if (qualite == '') {
+					//console.log(compo + '--' + JSON.stringify(oCompos));
 					eTd.appendChild(document.createTextNode(oCompos[compo].nom));
 				} else if (oCompos[compo] && oCompos[compo][qualite]) {
 					eTd.appendChild(document.createTextNode(oCompos[compo][qualite]));
@@ -17465,8 +18278,8 @@ function MZ_doSearchCompoTanieres(event) {
 		} catch (exc) {
 			logMZ('compo taniere.onload2', exc);
 		}
-
 	};
+
 	// fonction de traitement du retour du premier appel (qui reçoit de l'HTML). Ne sert qu'à récupérer le code "cp"
 	let callback1 = function (responseDetails) {
 		try {
@@ -17701,8 +18514,6 @@ try {
 		do_tancompo();
 	} else if (isPage("MH_Play/Play_vue")) {
 		do_vue();
-		do_scizEnhanceView(); /* SCIZ */
-		do_highlightSameXYN();
 	} else if (isPage("MH_Play/Play_news")) {
 		do_news();
 	} else if (isPage("MH_Play/Play_evenement")) {
@@ -17746,8 +18557,8 @@ try {
 		do_profil2();
 	} else if (isPage('MH_Play/Play_profil2')) {
 		do_profil2();
-	} else if (isPage('View/TrolligionView.php')) {
-		do_trolligion();
+	//} else if (isPage('View/TrolligionView.php')) {	// désactivé, la structure de la page a changé
+	//	do_trolligion();
 	} else if (isPage('View/TresorHistory.php')) {
 		MZ_CompoTanieresPrepare();
 	} else if (MY_DEBUG) {
