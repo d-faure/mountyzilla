@@ -6401,7 +6401,12 @@ class MZ_cColorizeLabels {
 			'MZ_cColorizeLabels.colorizers': MZ_cColorizeLabels.colorizers
 		});
 
-		td = appendTd(appendTr(mainBody, 'mh_tdpage'));
+		//td = appendTd(appendTr(mainBody, 'mh_tdpage'));
+		let tbody = appendSubTable(td);
+
+		td = appendTdCenter(appendTr(tbody));
+		td.innerHTML = "XXX";
+
 		let colorizerBody = appendSubTable(td);
 		colorizerBody.id = 'colorizerBody';
 
@@ -6412,13 +6417,15 @@ class MZ_cColorizeLabels {
 
 		};
 
-		let addColorizer = function () {},
-			removeColorizer = function () {};
+		let addColorizerUI = function () {
+			logMZ('addColorizerUI');
+		}, removeColorizerUI = function () {
+			logMZ('removeColorizerUI');
+		};
 
-		let tbody = appendSubTable(td);
 		td = appendTdCenter(appendTr(tbody));
-		appendButton(td, 'Ajouter', addColorizer);
-		appendButton(td, 'Supprimer', removeColorizer);
+		appendButton(td, 'Ajouter', addColorizerUI);
+		appendButton(td, 'Supprimer', removeColorizerUI);
 	}
 
 	static saveOptions() {
