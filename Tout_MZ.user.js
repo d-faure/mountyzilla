@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.40
+// @version     1.6.46
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.40';
+var MZ_latest = '1.6.46';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -7553,7 +7553,7 @@ function do_scizOverwriteEvents() {
 		method: 'GET',
 		url: sciz_url,
 		headers: { Authorization: jwt },
-		// trace: 'Appel à SCIZ pour l'entité ' + id,
+		trace: `Appel à SCIZ pour l'entité ${id}`,
 		onload: function (responseDetails) {
 			try {
 				if (responseDetails.status == 0) {
@@ -10969,8 +10969,9 @@ let menuRac, mainIco;
 
 function updateNumTroll() {
 	let eltId = document.getElementById('id');
+	if (!eltId) eltId = document.getElementById('footer');	// cas smartphone
 	if (!eltId) {
-		warnMZ(`updateNumTroll_log: numéro Troll introuvable (desktop)`);
+		warnMZ(`updateNumTroll_log: numéro Troll introuvable`);
 		return null;
 	}
 	let l_numTroll = parseInt(eltId.getAttribute('data-id'));
@@ -13672,6 +13673,7 @@ function displayCamoTroll(infos) {
 	return img;
 }
 
+/*
 function createTrollRowFromRef(infos, ref_tr) {
 	let tr = ref_tr.cloneNode(true);
 	tr.style.color = 'cc7000';
@@ -13710,7 +13712,7 @@ function createTrollRowFromRef(infos, ref_tr) {
 	tr.cells[idx].innerText = ref_tr.cells[idx].innerText.replace('r_n', infos.n);
 	return tr;
 }
-
+*/
 
 /** x~x Mode Tétalanvert! ------------------------------------------------- */
 
@@ -13782,6 +13784,7 @@ class MZ_cVueJSON {
 	static callbacksFinMH = [];
 	static callbacksFinMZ = [];
 	static oPosTroll;
+	static initDone;
 
 	static initGlobal() {
 		// le constructeur de chaque instance va faire le boulot d'init
@@ -13791,6 +13794,7 @@ class MZ_cVueJSON {
 		MZ_cVueJSON.oChampignons = new MZ_cVueJSON('champignons');
 		MZ_cVueJSON.oLieux = new MZ_cVueJSON('lieux');
 		MZ_cVueJSON.oCenotaphes = new MZ_cVueJSON('cenotaphes');
+		MZ_cVueJSON.initDone = true;
 	}
 
 	static allMHLoaded() {
@@ -13808,7 +13812,6 @@ class MZ_cVueJSON {
 
 	static MZLoaded() {
 		// fonction appelée quand tous les blocs venant de MH sont chargés, le retour MZ est chargé et le calcul des cibles de mission est fait
-		
 	}
 
 	static registerCallback(callback) {
@@ -13889,7 +13892,7 @@ class MZ_cVueJSON {
 		this.load();
 	}
 
-	load() {
+	async load() {
 		// crée des objects dérivés de MZ_cLigneVue et les stocke dans le tableau this.objets
 
 		// faire pointer les propriétés de l'object vers les variables globales "let" de MH
@@ -14013,7 +14016,15 @@ class MZ_cVueJSON {
 			}
 		}
 
-		this.cLigneClass.initGlobal();
+		// gath': on empeche d'init une sous-classe avant l'initialisation globale de cVue
+		while (true) {
+			if (!MZ_cVueJSON.initDone) {
+				await new Promise(r => setTimeout(r, 10));
+				continue;
+			}
+			this.cLigneClass.initGlobal();
+			break;
+		}
 
 		let allMHLoaded = true;
 		for (let o of [
@@ -14087,13 +14098,15 @@ class MZ_cVueJSON {
 		this.eltDivShowFiltre.onclick = MZ_cLigneVue.stopPropagation;
 
 		this.eltParamFiltre = document.createElement('div');
+		this.eltParamFiltre.className = "collapsible-content-inner";
 
 		let btn = appendButton(this.eltDivShowFiltre, 'Filtrer');
 		btn.id = 'MZ_btnFiltre' + this.nomBase;
 		let varThis = this;	// pour passer this aux callbacks
+		let btnShow = false;
 		btn.onclick = function () {
-			varThis.eltParamFiltre.style.display = 'block';
-			btn.style.display = 'none';
+			varThis.eltParamFiltre.style.display = btnShow ? 'none' : 'block';
+			btnShow = !btnShow;
 		};
 		if (!oConfig.empty) btn.value = 'Modifier le filtre';
 
@@ -14106,7 +14119,10 @@ class MZ_cVueJSON {
 		eltNav.insertBefore(this.eltDivShowFiltre, null);
 
 		if (this.cLigneClass.nomsFiltres) {
-			this.eltParamFiltre.appendChild(document.createTextNode('CACHER : '));
+			let img = document.createElement('img');
+			img.style.padding = '0px 5px 5px 5px';
+			img.src = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHN2ZyBmaWxsPSIjMDAwMDAwIiB3aWR0aD0iMTZweCIgaGVpZ2h0PSIxNnB4IiB2aWV3Qm94PSIwIDAgMzIgMzIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTSAzLjcxODc1IDIuMjgxMjUgTCAyLjI4MTI1IDMuNzE4NzUgTCA4LjUgOS45MDYyNSBMIDE5LjU5Mzc1IDIxIEwgMjEuNSAyMi45Mzc1IEwgMjguMjgxMjUgMjkuNzE4NzUgTCAyOS43MTg3NSAyOC4yODEyNSBMIDIzLjUgMjIuMDYyNSBDIDI3LjczNDM3NSAxOS45NjQ4NDQgMzAuNTc0MjE5IDE2Ljg1MTU2MyAzMC43NSAxNi42NTYyNSBMIDMxLjM0Mzc1IDE2IEwgMzAuNzUgMTUuMzQzNzUgQyAzMC40ODA0NjkgMTUuMDQyOTY5IDI0LjA4NTkzOCA4IDE2IDggQyAxNC4wNDI5NjkgOCAxMi4xOTUzMTMgOC40Mjk2ODggMTAuNSA5LjA2MjUgWiBNIDE2IDEwIEMgMTguMTUyMzQ0IDEwIDIwLjE4NzUgMTAuNjA1NDY5IDIyIDExLjQzNzUgQyAyMi42NDQ1MzEgMTIuNTE1NjI1IDIzIDEzLjczNDM3NSAyMyAxNSBDIDIzIDE2LjgxNjQwNiAyMi4yOTY4NzUgMTguNDc2NTYzIDIxLjE1NjI1IDE5LjcxODc1IEwgMTguMzEyNSAxNi44NzUgQyAxOC43MzA0NjkgMTYuMzYzMjgxIDE5IDE1LjcxNDg0NCAxOSAxNSBDIDE5IDEzLjM0Mzc1IDE3LjY1NjI1IDEyIDE2IDEyIEMgMTUuMjg1MTU2IDEyIDE0LjYzNjcxOSAxMi4yNjk1MzEgMTQuMTI1IDEyLjY4NzUgTCAxMi4wOTM3NSAxMC42NTYyNSBDIDEzLjMzNTkzOCAxMC4yNzM0MzggMTQuNjM2NzE5IDEwIDE2IDEwIFogTSA2LjY4NzUgMTAuOTA2MjUgQyAzLjQ4MDQ2OSAxMi44Nzg5MDYgMS4zOTg0MzggMTUuMTc1NzgxIDEuMjUgMTUuMzQzNzUgTCAwLjY1NjI1IDE2IEwgMS4yNSAxNi42NTYyNSBDIDEuNTA3ODEzIDE2Ljk0NTMxMyA3LjQyOTY4OCAyMy40MjU3ODEgMTUuMDYyNSAyMy45Mzc1IEMgMTUuMzcxMDk0IDIzLjk2ODc1IDE1LjY4MzU5NCAyNCAxNiAyNCBDIDE2LjMxNjQwNiAyNCAxNi42Mjg5MDYgMjMuOTY4NzUgMTYuOTM3NSAyMy45Mzc1IEMgMTcuNzYxNzE5IDIzLjg4MjgxMyAxOC41NjY0MDYgMjMuNzczNDM4IDE5LjM0Mzc1IDIzLjU5Mzc1IEwgMTcuNTYyNSAyMS44MTI1IEMgMTcuMDU0Njg4IDIxLjkyOTY4OCAxNi41MzkwNjMgMjIgMTYgMjIgQyAxMi4xNDA2MjUgMjIgOSAxOC44NTkzNzUgOSAxNSBDIDkgMTQuNDY4NzUgOS4wNzAzMTMgMTMuOTQ5MjE5IDkuMTg3NSAxMy40Mzc1IFogTSA3LjI1IDEyLjkzNzUgQyA3LjA4OTg0NCAxMy42MTMyODEgNyAxNC4zMDA3ODEgNyAxNSBDIDcgMTYuNzM4MjgxIDcuNDg4MjgxIDE4LjMzOTg0NCA4LjM0Mzc1IDE5LjcxODc1IEMgNi4wNTQ2ODggMTguNDA2MjUgNC4zMDQ2ODggMTYuODY3MTg4IDMuNDA2MjUgMTYgQyA0LjE1MjM0NCAxNS4yNzczNDQgNS40OTYwOTQgMTQuMDc4MTI1IDcuMjUgMTIuOTM3NSBaIE0gMjQuNzUgMTIuOTM3NSBDIDI2LjUwMzkwNiAxNC4wNzgxMjUgMjcuODQzNzUgMTUuMjc3MzQ0IDI4LjU5Mzc1IDE2IEMgMjcuNjk1MzEzIDE2Ljg2NzE4OCAyNS45MTc5NjkgMTguNDM3NSAyMy42MjUgMTkuNzUgQyAyNC40ODQzNzUgMTguMzcxMDk0IDI1IDE2LjczODI4MSAyNSAxNSBDIDI1IDE0LjMwMDc4MSAyNC45MTAxNTYgMTMuNjA5Mzc1IDI0Ljc1IDEyLjkzNzUgWiIvPjwvc3ZnPg==';
+			this.eltParamFiltre.appendChild(img);
 			for (let nomfiltre in this.cLigneClass.nomsFiltres) {
 				let oNom = this.cLigneClass.nomsFiltres[nomfiltre];
 				let chk = appendCheckBoxSpan(this.eltParamFiltre, 'MZ_chkMonstre' + nomfiltre, this.cLigneClass.modifFiltre, oNom.libelle).firstChild;
@@ -14116,8 +14132,9 @@ class MZ_cVueJSON {
 		}
 
 		let div2 = document.createElement('div');
+		div2.id = `dlo_${this.nomBase}`
 		// ce bouton ne sert qu'à faire beau, c'est le onchange de la textbox qui va faire le boulot
-		let btn2 = appendButton(this.eltDivShowFiltre, 'Nom du ' + this.nomBase.substring(0, this.nomBase.length-1)  + ':');
+		let btn2 = appendButton(this.eltDivShowFiltre, 'Nom du ' + this.nomBase.substring(0, this.nomBase.length-1) + ':');
 		btn2.style.marginRight = '3px';
 		div2.appendChild(btn2);
 
@@ -14152,8 +14169,6 @@ class MZ_cVueJSON {
 		divTable.insertBefore(this.eltParamFiltre, divTable.firstChild);
 
 		this.applyFiltre(oConfig);
-
-		//console.log('fin MZ_cLigneMonstre.initGlobal');
 	}
 
 	applyFiltre(oConfig) {
@@ -14239,12 +14254,13 @@ class MZ_cLigneVue {
 			this.x = parseInt(t[0]);
 			this.y = parseInt(t[1]);
 			this.n = parseInt(t[2]);
+			//logMZ(`loadXYN from data-xyn ${this.nom} ${this.x}, ${this.y}, ${this.n}, `);
 			return;
 		}
-		logMZ(`loadXYN from eltTds ${this.nom}`);
 		this.x = parseInt(this.eltTdX.innerText);
 		this.y = parseInt(this.eltTdY.innerText);
 		this.n = parseInt(this.eltTdN.innerText);
+		//logMZ(`loadXYN from eltTds ${this.nom} ${this.x}, ${this.y}, ${this.n}, `);
 	}
 
 	loadDist() {
@@ -14263,7 +14279,7 @@ class MZ_cLigneVue {
 	}
 
 	static stopPropagation(event) {
-		event.cancelBubble=true;
+		event.cancelBubble = true;
 		if(event.stopPropagation) event.stopPropagation();
 		return false;
 	}
@@ -14311,7 +14327,7 @@ class MZ_cLigneVue {
 		}
 	}
 
-	static 	addLigne(id, nom, x, y, n, oNouvelleLigne, oModele) {
+	static addLigne(id, nom, x, y, n, oNouvelleLigne, oModele) {
 		// version générique
 		// crée le tr
 		// gère les td communs : distance, id, nom (pas le remplissage), x, y, n
@@ -14346,7 +14362,7 @@ class MZ_cLigneVue {
 			} else if (oNouvelleLigne.distV > 0) {
 				txt += '\u2007+' + oNouvelleLigne.distV; // espace qui a la même largeur qu'un chiffre
 			} else if(oNouvelleLigne.distV == 0) {
-				txt +=  '\u2007\u20070';
+				txt += '\u2007\u20070';
 			} else if (oNouvelleLigne.distV > -10) {
 				txt += '\u2007\u2212' + Math.abs(oNouvelleLigne.distV); // signe moins qui a la même largeur qu'un chiffre
 			} else {
@@ -14357,39 +14373,46 @@ class MZ_cLigneVue {
 			oNouvelleLigne.eltTdDist.appendChild(document.createTextNode(oNouvelleLigne.dist));
 		}
 		oNouvelleLigne.eltTdRef= document.createElement('td');
-		oNouvelleLigne.eltTdRef.style.textAlign = 'right';
+		oNouvelleLigne.eltTdRef.className = 'ref';
 		oNouvelleLigne.eltTdRef.appendChild(document.createTextNode(id));
 		oNouvelleLigne.eltTdAction = document.createElement('td');
+		oNouvelleLigne.eltTdAction.className = 'actions';
 		oNouvelleLigne.eltTdNom= document.createElement('td');
 		oNouvelleLigne.eltTdX = document.createElement('td');
 		oNouvelleLigne.eltTdX.appendChild(document.createTextNode(x));
-		oNouvelleLigne.eltTdX.style.textAlign = 'right';
+		oNouvelleLigne.eltTdX.className = 'x';
 		oNouvelleLigne.eltTdY = document.createElement('td');
 		oNouvelleLigne.eltTdY.appendChild(document.createTextNode(y));
-		oNouvelleLigne.eltTdY.style.textAlign = 'right';
+		oNouvelleLigne.eltTdY.className = 'y';
 		oNouvelleLigne.eltTdN = document.createElement('td');
 		oNouvelleLigne.eltTdN.appendChild(document.createTextNode(n));
-		oNouvelleLigne.eltTdN.style.textAlign = 'right';
+		oNouvelleLigne.eltTdN.className = 'n footable-last-visible';
 		// l'insérer à la bonne place
-		let oGreater;
-		for (let oOther of oNouvelleLigne.constructor.MZ_oVueJSON.objets) {
+		let idx, oOther, found;
+		for ([idx, oOther] of oNouvelleLigne.constructor.MZ_oVueJSON.objets.entries()) {
 			//logMZ(JSON.stringify(oOther));
 			oOther.loadDist();
 			if (oOther.dist < oNouvelleLigne.dist) continue;
-			if (oOther.dist > oNouvelleLigne.dist) {
-				oGreater = oOther;
-				break;
-			}
+			if (oOther.dist > oNouvelleLigne.dist) {found = true; break;}
+			if (oOther.x < oNouvelleLigne.x) continue;
+			if (oOther.x > oNouvelleLigne.x) {found = true; break;}
+			if (oOther.y < oNouvelleLigne.y) continue;
+			if (oOther.y > oNouvelleLigne.y) {found = true; break;}
+			if (oOther.n < oNouvelleLigne.n) continue;
+			if (oOther.n > oNouvelleLigne.n) {found = true; break;}
 			if (oOther.id < id) continue;
-			if (oOther.id > id) {
-				oGreater = oOther;
-				break;
-			}
-			warnMZ("addLigne_log ajout d'une ligne préexistante, ça ne devrait pas arriver", id, nom);
+			if (oOther.id > id) {found = true; break;}
+			warnMZ(`addLigne_log ajout d'une ligne préexistante, ça ne devrait pas arriver ${id} ${nom}`);
 			return false;
 		}
-		// Ajout en fin si oGreater est undefined
-		oNouvelleLigne.constructor.MZ_oVueJSON.eltTable.tBodies[0].insertBefore(oNouvelleLigne.eltTr, oGreater ? oGreater.eltTr : undefined);
+		if (found) {
+			oNouvelleLigne.constructor.MZ_oVueJSON.eltTable.tBodies[0].insertBefore(oNouvelleLigne.eltTr, oOther.eltTr);
+			oNouvelleLigne.constructor.MZ_oVueJSON.objets.splice(idx, 0, oNouvelleLigne);
+		} else {
+			// Ajout en fin
+			oNouvelleLigne.constructor.MZ_oVueJSON.eltTable.tBodies[0].insertBefore(oNouvelleLigne.eltTr, undefined);
+			oNouvelleLigne.constructor.MZ_oVueJSON.objets.push(oNouvelleLigne);
+		}
 		return true;
 	}
 }
@@ -14669,8 +14692,8 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 			}
 			if ((!cache)
 				&& nivMin !== undefined
-				&& oMonstre.infoMZ 
-				&& oMonstre.infoMZ.niv 
+				&& oMonstre.infoMZ
+				&& oMonstre.infoMZ.niv
 				&& oMonstre.infoMZ.niv.max
 				&& oMonstre.infoMZ.niv.max < nivMin) cache = true;
 			if ((!cache)
@@ -14722,7 +14745,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 				break;
 			}
 		}
-		logMZ(`${MZ_formatDateMS()} lancement AJAX ${nbReq} demandes niveaux monstres V2`);
+		//logMZ(`${MZ_formatDateMS()} lancement AJAX ${nbReq} demandes niveaux monstres V2`);
 		debugMZ(`Envoi MZ ${nbReq} IDs, nbMonstres=${nbMonstre}, lastIndexDone=${MZ_cLigneMonstre.lastIndexSent}`);
 		if (nbReq == 0) return;
 
@@ -15074,7 +15097,8 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	static colBtPVDone;
 	static colBtPADone;
 	static cssBtDone;
-	static refTr;
+	static colEnvoiDone;
+	//static refTr;
 	eltTdBtPV;	// le TD est créé même pour les lignes où les PV ne sont pas dispo
 	eltTdBtPA;	// le TD est créé même pour les lignes où les PA ne sont pas dispo
 	eltTdGuilde;
@@ -15087,6 +15111,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 		this.eltTdGuilde = eTr.cells[MZ_oVueJSON.indxTdGuilde];
 		this.eltTdNiv = eTr.cells[MZ_oVueJSON.indxTdNiv];
 
+		/*
 		if (!MZ_cLigneTroll.refTr) {
 			// gath: on construit pour afficher les trolls hors-vue (bricolTroll).
 			// Le premier troll visible (nous) est dupliqué puis
@@ -15114,8 +15139,10 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 			}
 			MZ_cLigneTroll.refTr = ref_tr;
 		}
+		*/
 	}
 
+	/* to be deleted
 	initFromRef(infos) {
 		const ref_tr = MZ_cLigneTroll.refTr;
 		let id = parseInt(infos.id);
@@ -15134,6 +15161,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 		insertAfter(allTr[insertAt], eTr);
 		// gath: inserer aussi dans `MZ_cLigneTroll.MZ_oVueJSON.MH_json` ?
 	}
+	*/
 
 	insertColumn(param) {
 		// c'est prévu pour travailler sur plusieurs colonnes. Le paramètre dit dans quel cas on est
@@ -15161,8 +15189,13 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	}
 
 	insertColumnEnvoi() {
+		MZ_cLigneTroll.colEnvoiDone = true;
 		this.eltEnvoi = insertTd(this.eltTdNom);
 		this.eltEnvoi.style.display = 'table-cell';
+		this.fillColumnEnvoi();
+	}
+
+	fillColumnEnvoi() {
 		let input = document.createElement('input');
 		input.type = 'checkbox';
 		this.eltEnvoi.appendChild(input);
@@ -15264,17 +15297,17 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 			// Ajout de la colonne des CheckBoxes
 			MZ_cLigneTroll.MZ_oVueJSON.insertColumn(MZ_cLigneTroll.MZ_oVueJSON.indxTdNom, '', '17px', 3);
 			// Ajout des boutons
-			let btnPX = insertButton(btnEnvoi, 'Envoyer des PX', MZ_cLigneTroll.envoi);
+			let btnPX = insertButton(btnEnvoi, 'Envoyer des PX', MZ_cLigneTroll.envoiPX_MP);
 			btnPX.style.marginLeft = '5px';
 			btnPX.setAttribute('data-role', 'px');
-			let btnMP = insertButton(btnEnvoi, 'Envoyer un MP', MZ_cLigneTroll.envoi);
+			let btnMP = insertButton(btnEnvoi, 'Envoyer un MP', MZ_cLigneTroll.envoiPX_MP);
 			btnMP.style.marginLeft = '5px';
 			btnMP.setAttribute('data-role', 'mp');
 			btnEnvoi.parentNode.removeChild(btnEnvoi);
 		};
 	}
 
-	static envoi(e) {
+	static envoiPX_MP(e) {
 		// liste des ID
 		let listID = [];
 		for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
@@ -15384,10 +15417,23 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 				});
 				for (let [idTroll, infos] of Object.entries(btData.data.trolls)) {
 					if (visibleTrolls.includes(idTroll)) { continue; }
+					/*
 					let awayTroll = new MZ_cLigneTroll();
 					let maPos = getPosition(true), pos = [infos.x, infos.y, infos.n];
 					infos.dist = calculeDistance(maPos, pos);
 					awayTroll.initFromRef(infos);
+					*/
+					//logMZ('receptionBricolTrollAJAX', infos);
+					MZ_cLigneTroll.addLigne(
+						infos.id,
+						infos.nom,
+						infos.x,
+						infos.y,
+						infos.n,
+						undefined,	// id de guilde inconnu ?
+						infos.guilde,
+						infos.niveau,
+						infos.race);
 				}
 			}
 
@@ -15399,6 +15445,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 
 			if (!MZ_cLigneTroll.colBtPVDone) {
 				MZ_cLigneTroll.MZ_oVueJSON.insertColumn(MZ_cLigneTroll.MZ_oVueJSON.indxTdGuilde, 'PV', '', 1);
+				logMZ(`insert colonne PV`);
 				MZ_cLigneTroll.colBtPVDone = true;
 			}
 
@@ -15419,42 +15466,68 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	}
 
 	static addLigne(id, nom, x, y, n, guildeId, guildeNom, niv, race) {
+		logMZ(`addLigne Troll ${id} colBtPVDone=${MZ_cLigneTroll.colBtPVDone}`);
 		let oModele = MZ_cVueJSON.oTrolls.objets[0];
 		let oNouvelleLigne = new MZ_cLigneTroll();
 		if (!MZ_cLigneVue.addLigne(id, nom, x, y, n, oNouvelleLigne, oModele)) return;
-		let html_nom = `<a href="javascript:PVT(${id})" class="mh_trolls_1">${nom}</a>`;
 		let a = document.createElement('a');
-		a.clasName = 'troll';
+		a.className = 'troll';
 		a.href = `javascript:PVT(${id})`;
 		a.appendChild(document.createTextNode(nom));
 		oNouvelleLigne.eltTdNom.appendChild(a);
 		oNouvelleLigne.eltTdGuilde = document.createElement('td');
-		if (guildeId) {
-			a = document.createElement('a');
-			a.href = `javascript:PVG(${guildeId})`;
-			a.appendChild(document.createTextNode(guildeNom));
-			oNouvelleLigne.eltTdGuilde.appendChild(a);
+		if (guildeNom !== undefined) {
+			if (guildeId) {
+				a = document.createElement('a');
+				a.href = `javascript:PVG(${guildeId})`;
+				a.appendChild(document.createTextNode(guildeNom));
+				oNouvelleLigne.eltTdGuilde.appendChild(a);
+			} else {
+				oNouvelleLigne.eltTdGuilde.appendChild(document.createTextNode(guildeNom));
+			}
 		}
+		niv = niv ? niv : '';
 		oNouvelleLigne.eltTdNiv = document.createElement('td');
-		if (niv) oNouvelleLigne.eltTdNiv.appendChild(document.createTextNode(niv));
-		oNouvelleLigne.eltTdNiv.style.textAlign = 'right';
-		oNouvelleLigne.eltTdRace = document.createElement('td');
-		if (race) oNouvelleLigne.eltTdRace.appendChild(document.createTextNode(race));
-		for (let e of [
-			oNouvelleLigne.eltTdDist,
-			oNouvelleLigne.eltTdAction,
-			oNouvelleLigne.eltTdRef,
-			oNouvelleLigne.eltTdNom,
+		oNouvelleLigne.eltTdNiv.className = isDesktopView() ? 'niv' : 'niv race';
+		if (isDesktopView()) {
+			oNouvelleLigne.eltTdRace = document.createElement('td');
+			oNouvelleLigne.eltTdRace.className = 'race';
+			if (race) oNouvelleLigne.eltTdRace.appendChild(document.createTextNode(race));
+		} else {
+			let lettreRace = { "Kastar": "K", "Durakuir": "D", "Skrim": "S", "Tomawak": "T", "Darkling": "G", " Nkrwapu": "N" };
+			niv = race ? `${lettreRace[race]}${niv}` : niv;
+		}
+		oNouvelleLigne.eltTdNiv.appendChild(document.createTextNode(niv));
+		let tabTd = [oNouvelleLigne.eltTdDist];
+		if (isDesktopView()) tabTd.push(oNouvelleLigne.eltTdAction);
+		tabTd.push(oNouvelleLigne.eltTdRef);
+		if (MZ_cLigneTroll.colEnvoiDone) {
+			oNouvelleLigne.eltEnvoi = document.createElement('td');
+			this.fillColumnEnvoi();
+			tabTd.push(oNouvelleLigne.eltEnvoi);
+		}
+		tabTd.push(oNouvelleLigne.eltTdNom);
+		if (MZ_cLigneTroll.colBtPVDone) {
+			oNouvelleLigne.eltTdBtPV = document.createElement('td');
+			tabTd.push(oNouvelleLigne.eltTdBtPV);
+		}
+		if (MZ_cLigneTroll.colBtPADone) {
+			oNouvelleLigne.eltTdBtPA = document.createElement('td');
+			tabTd.push(oNouvelleLigne.eltTdBtPA);
+		}
+		tabTd.splice(tabTd.length, 0,
 			oNouvelleLigne.eltTdGuilde,
-			oNouvelleLigne.eltTdNiv,
-			oNouvelleLigne.eltTdRace,
+			oNouvelleLigne.eltTdNiv);
+		if (isDesktopView()) tabTd.push(oNouvelleLigne.eltTdRace);
+		tabTd.splice(tabTd.length, 0,
 			oNouvelleLigne.eltTdX,
 			oNouvelleLigne.eltTdY,
-			oNouvelleLigne.eltTdN]) {
+			oNouvelleLigne.eltTdN);
+		for (let e of tabTd) {
 			e.style.display = 'table-cell';
 			oNouvelleLigne.eltTr.appendChild(e);
 		}
-		MZ_cVueJSON.oTrolls.objets.push(oNouvelleLigne);
+		// todo appliquer la diplo
 		return oNouvelleLigne;
 	}
 }
@@ -15503,7 +15576,6 @@ class MZ_cLigneLieu extends MZ_cLigneVue {
 			e.style.display = 'table-cell';
 			oNouvelleLigne.eltTr.appendChild(e);
 		}
-		MZ_cVueJSON.oLieux.objets.push(oNouvelleLigne);
 		return oNouvelleLigne;
 	}
 }
