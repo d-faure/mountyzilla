@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.50
+// @version     1.6.52
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.50';
+var MZ_latest = '1.6.52';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -7690,7 +7690,7 @@ function parseMissionSteps() {
 			let stepNode = children[1];
 			let stepText = stepNode.textContent;
 			let validationText = children[2].textContent;
-			if (0 > validationText.indexOf("valid")) {
+			if (0 > validationText.toLowerCase().indexOf("valid")) {
 				// Etape déjà réalisée ou pas encore réalisée
 				return;
 			}
@@ -7739,20 +7739,22 @@ function handleMonsterStep(text) {
 		recherche: MZ_troogle.SEARCH_MONSTER
 	};
 
-	let raceExtract = /de la race des "(.*?)"/i;
+	let raceExtract = /de la race des (.*)/i;
 	let match = raceExtract.exec(text);
 	if (match) {
 		mission.type = 'Race'
 		let race = removeEnclosingSimpleCote(trim(match[1]));
 		mission.recherche += ` ${race}`;
+		mission.race = race;
 	}
 
-	let familyExtract = /de la famille "(.*?)"/i;
+	let familyExtract = /de la famille (.*)/i;
 	match = familyExtract.exec(text);
 	if (match) {
 		mission.type = 'Famille'
 		let famille = trim(match[1]);
 		mission.recherche += `:${famille}`;
+		mission.famille = famille;
 	}
 
 	let minLevelExtract = /niveau.* (\d+) au moins/i;
@@ -7810,7 +7812,7 @@ function atoi(s) {
 	// @param node element html (conteneur) dans lequel le lien va être ajouté
 	// @param text texte de recherche (supposé correctement écrit)
 	MZ_troogle.addTroogleLink = function (node, text) {
-		let url = `${BASE_TROOGLE_SEARCH}${text} `;
+		let url = `${BASE_TROOGLE_SEARCH}${encodeURIComponent(text)} `;
 		url += playerPositionParameters();
 		let link = appendA(node, url);
 		link.target = 'Troogle';
@@ -11963,12 +11965,7 @@ class MZ_cVueExterne {
 					}#DEBUT ORIGINE\n${porteeVueExt};${positionToString(getPosition())
 					}\n#FIN ORIGINE\n`;
 			}
-			//logMZ(`MZ_cVueExterne.getVueScript nbTrolls=${nbTrolls}, txt=${txt}`); // xxx
 			debugMZ(`MZ_cVueExterne.getVueScript nbTrolls=${nbTrolls}, txt=${txt}`);
-			logMZ(`fin MZ_cVueExterne.getVueScript`);
-			//logMZ(`MZ_cVueExterne.getVueScript nbTrolls=${MZ_cVueJSON.oTrolls.objets.length}`);
-			//logMZ(`MZ_cVueExterne.getVueScript nbMonstres=${MZ_cVueJSON.oMonstres.objets.length}`);
-			//logMZ(txt);
 			return txt;
 		} catch (exc) {
 			avertissement("[MZ_cVueExterne.getVueScript] Erreur d'export vers Vue externe", null, null, exc);
@@ -14091,11 +14088,14 @@ class MZ_cVueJSON {
 
 	getData4Vue2D(limitH, limitV) {
 		let txt = '#DEBUT ' + this.nomBase.toUpperCase() + "\n";
+		let myPosition = getPosition();
 		for (let o of this.objets) {
+			o.loadXYN();
+			if (Math.max(Math.abs(myPosition[0] - o.x), Math.abs(myPosition[1] - o.y)) > limitH) continue;
+			if (Math.abs(myPosition[2] - o.n) > limitV) continue;
 			txt += o.id + ';';
 			if (this.nomBase != 'trolls')
 				txt += o.nom + ';';
-			o.loadXYN();
 			txt += o.x + ';';
 			txt += o.y + ';';
 			txt += o.n + "\n";
@@ -14569,7 +14569,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 					nom.match(/^[^\[]*beholder/) ||
 					nom.match(/^[^\[]*sidoine/)) {
 				//tr.className = '';	// la class empêche l'héritage de la couleur par les td. Je préfère forcer les td qu'enlever la class
-				for (let td of tr.children) td.style.backgroundColor = aAppliquer.Monstre[oLigne.id].couleur;
+				for (let td of tr.children) if (oLigne.id && aAppliquer.Monstre[oLigne.id]) td.style.backgroundColor = aAppliquer.Monstre[oLigne.id].couleur;
 				tr.style.backgroundColor = aAppliquer.mythiques;
 				tr.diploActive = 'oui';
 				oLigne.eltTdNom.title = 'Monstre Mythique';
@@ -15485,7 +15485,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	}
 
 	static addLigne(id, nom, x, y, n, guildeId, guildeNom, niv, race) {
-		logMZ(`addLigne Troll ${id} colBtPVDone=${MZ_cLigneTroll.colBtPVDone}`);
+		//logMZ(`addLigne Troll ${id} colBtPVDone=${MZ_cLigneTroll.colBtPVDone}`);
 		let oModele = MZ_cVueJSON.oTrolls.objets[0];
 		let oNouvelleLigne = new MZ_cLigneTroll();
 		if (!MZ_cLigneVue.addLigne(id, nom, x, y, n, oNouvelleLigne, oModele)) return;
