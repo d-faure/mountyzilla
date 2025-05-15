@@ -13927,6 +13927,7 @@ class MZ_cVueJSON {
 		if (this.eltTable == null) {
 			logMZ("MZ_cVueJSON_log constructor pas d'élément" + 'VUE_' + this.nomBase);
 			return;
+		}
 		MZ_cColorizeLabels.init();
 		MZ_cHighlightSameXYN.init();
 	}
