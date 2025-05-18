@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.58
+// @version     1.6.60
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.58';
+var MZ_latest = '1.6.60';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -7709,7 +7709,7 @@ function parseMissionSteps() {
 				saveMission(idMission, step);
 				return;
 			}
-			debugMZ(`Texte de mission non traité:${step}`);
+			debugMZ(`Texte de mission non traité:${stepText}`);
 		});
 		if (!validationFound) {
 			// S'il n'y a plus d'étape en cours (=mission finie), on supprime
@@ -14005,8 +14005,10 @@ class MZ_cVueJSON {
 		}
 		if (MZ_cVueJSON.debugEnchainements) logMZ(`MZ_cVueJSON_log load_log continue car MH_json ${this.MH_json === undefined ? 'est' : "n'est pas"} undefined et objets ${this.Mojjets === undefined ? 'est' : "n'est pas"} undefined`);
 
-		this.mutationObserver.disconnect();
-		this.mutationObserver = undefined;
+		if (this.mutationObserver) {
+			this.mutationObserver.disconnect();
+			this.mutationObserver = undefined;
+		}
 		this.loaded = true;
 		//logMZ('MZ_cVueJSON_log il faut initialiser les ' + this.nomBase);
 		// trouver les numéro de colonne pour chaque info (dist, ref, nom, etc.)
@@ -15003,8 +15005,8 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 				}
 
 				// missions
-				let mess = '';
-				let bPeutEtreIcone = false;
+				//let mess = '';
+				//let bPeutEtreIcone = false;
 				if (obMissions) for (let num in obMissions) {
 					let oMission = obMissions[num];
 					let mobMission = false;
@@ -15119,15 +15121,26 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 							}
 					}
 					if (mobMission) {
-						mess = mess + (mess ? '\n\n' : '');
-						mess = `${mess}Mission ${num} :\n${oMission.libelle}`;
+						//mess = mess + (mess ? '\n\n' : '');
+						//mess = `${mess}Mission ${num} :\n${oMission.libelle}`;
+						oMonstre.eltTdNom.appendChild(createImage(
+							`${URL_MZimg}mission.png`, 
+							`Mission ${num} :\n${oMission.libelle}`));
+						oMonstre.cibleMission = true;
 					} else if (mobMissionPeutEtre !== undefined) {
+						/*
 						mess = mess + (mess ? '\n\n' : '');
 						mess = `${mess}${mobMissionPeutEtre}\n`;
 						bPeutEtreIcone = true;
 						mess = `${mess}Mission ${num} :\n${oMission.libelle}`;
+						*/
+						oMonstre.eltTdNom.appendChild(createImage(
+							`${URL_MZimg}missionX.png`, 
+							`Mission ${num} :\n${oMission.libelle}\n${mobMissionPeutEtre}`));
+						oMonstre.cibleMission = true;
 					}
 				}
+				/* à supprimer
 				if (mess) {
 					let myURL;
 					if (bPeutEtreIcone) {
@@ -15138,6 +15151,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 					oMonstre.eltTdNom.appendChild(createImage(myURL, mess));
 					oMonstre.cibleMission = true;
 				}
+				*/
 
 				/* Roule' à étudier plus tard, cette différence de style selon la diplo...
 				oMonstre.eltTdNiveau.onmouseover = function() {
