@@ -13,9 +13,11 @@
 // @exclude *mh2.mh.raistlin.fr*
 // @exclude *mzdev.mh.raistlin.fr*
 // @name Capitan
-// @version 8.8.20
+// @version 8.8.22
 // @namespace https://greasyfork.org/users/70018
 // ==/UserScript==
+
+"use strict";
 
 /****************************************************************
 *         Aide à la recherche de cachettes de Capitan           *
@@ -32,64 +34,6 @@
 *            Et dans le détail de la carte vous verrez          *
 *       Le nombre de cachettes possibles et leur position       *
 ****************************************************************/
-
-/*
-Roule 06/02/2024 V8.8.14
-	Remise en route
-Roule 01/05/2023 V8.8.13
-	Adaptation modif de présentation MH
-Roule 27/11/2021 V8.8.12
-	Fix résultat pas remis à zéro quand on affiche une 2e fois
-Roule 03/01/2021 V8.8.10
-	Réécriture de la recherche des solutions
-Roule 26/11/2020 V8.8.09
-	Fix suppression d'essai
-Roule 16/10/2020 V8.8.08
-	Adaptation à des modifications MH
-Roule 07/10/2020 V8.8.07
-	Adaptation à des modifications MH
-disciple 17/06/2020 V8.8.06
-	Correction ± #2
-Roule 05/08/2018 V8.8.04
-	Saut de version suite à une erreur de numérotation
-	Correction ± (Tu es => Vous êtes)
-Roule 05/08/2018 V8.2.03
-	Passage en objet pour assurer l'indépendance par rapport aux autres scripts
-	Blindage de la détection sous/hors GreaseMonkey ou ViolentMonkey
-Roule 05/08/2018 V8.1.67
-	Correction ±
-Roule 04/08/2018 V8.1.66
-	Utilisation hors GM
-Roule 25/08/2017 V8.1.61
-	Réactivation de la gestion des signes (+/-)
-Roule 23/11/2016 V8.1.6
-	Adaptation à l'affichage en popup dans les tanières (méthode toujours très discutable par setInterval)
-Roule 09/12/2016 V8.1.5
-	Nouvelle méthode de migration des essais V1.0 par copier/coller de tout pref.js
-Roule 23/11/2016 V8.1.4
-	Adaptation à l'affichage en popup du détail d'un équipement (méthode très discutable par setInterval)
-Roule 14/10/2016 V8.1.3
-	simplification de l'entête GM (include)
-	passage à greasyfork
-Roule 24 à 26/08/2016 V8.1.2
-	Ajout outils de récupération des recherches pré Greasemonkey
-Roule 15/08/2016 V8.1.1
-	Ajout demande d'avis sur la position courante sur le site Psyko-Chasseurs
-	Quelques corrections de calcul (on avait du NaN)
-Roule 08 à 10/08/2016
-	recopie ici de this.appendButton() version MZ
-	Ajout liste des essais et possibilité d'en supprimer
-	Ajout lien vers Psyko Chasseurs
-	Adaptation aux IDs dans la page de résultat d'une recherche de cachette (et plus besoin de stocker le numéro de carte)
-*/
-
-/* 05/08/2018 passage en objet
-	avantages
-		indépendance du nomage par rapport aux autres scripts (il y avait effectivement un souci aléatoire sans doute lié à une collision de nom)
-	inconvénient
-		syntaxe plus compliquée (utilisation de this, déclaration pas naturelle des fonctions
-		complexité pour l'utilisation des callback (par exemple setIntervale)
-*/
 
 var oCAPITAN_MH_ROULE;
 if (oCAPITAN_MH_ROULE instanceof Object) {
@@ -447,7 +391,7 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 				}
 				// ici, on a tiré tous les chiffres des 3 coordonnées, on teste si ces coord sont compatibles avec les essais
 				var isCompatible = true;
-				for (oEssai of this.gEssais) {
+				for (let oEssai of this.gEssais) {
 					if (!oEssai.isCompatible(newContexte.tabCoord)) {
 						isCompatible = false;
 						break;
@@ -719,6 +663,9 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 			var modalElt = document.evaluate("//div[@class = 'modal']",
 				document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 			if (modalElt) parentElt = modalElt;
+			this.gDiv = document.createElement('div');
+			parentElt.appendChild(this.gDiv);
+			parentElt = this.gDiv;
 
 			// bloc liste de solutions
 			var table = this.afficheInfoCarte(idCarte);
@@ -772,7 +719,7 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 			let p = document.createElement('p');
 			if (color) p.style.color = color;
 			p.appendChild(document.createTextNode('MZ Capitan : ' + msg));
-			let contMsg = document.getElementById('msgDiv');
+			let contMsg = document.getElementById('msgEffet');
 			if (!contMsg) {
 				contMsg = document.evaluate("//div[@class = 'modal']",
 				document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
@@ -906,7 +853,7 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 		},
 
 		createNewRecherche: function(parentElt) {
-			p = document.createElement('p');
+			let p = document.createElement('p');
 
 			var table = document.createElement('table');
 			table.setAttribute('class', 'mh_tdborder');
@@ -922,14 +869,14 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 
 			td.appendChild(document.createElement('br'));
 			td.appendChild(document.createTextNode("X = "));
-			this.addInput(td, "rX");
+			this.addInput(td, "MZ_rX");
 			td.appendChild(document.createTextNode(" Y = "));
-			this.addInput(td, "rY");
+			this.addInput(td, "MZ_rY");
 			td.appendChild(document.createTextNode(" N = "));
-			this.addInput(td, "rN");
+			this.addInput(td, "MZ_rN");
 			td.appendChild(document.createElement('br'));
 			td.appendChild(document.createTextNode("Nombre de chiffres bien placés : "));
-			this.addInput(td, "rBP",1);
+			this.addInput(td, "MZ_rBP",1);
 			td.appendChild(document.createElement('br'));
 			this.appendButton(td, "Ajouter", this.addRecherche.bind(this));
 
@@ -941,11 +888,10 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 		{
 			try
 			{
-				var td=this.parentNode;
-				var x = (td.getElementsByTagName("input")[0]).value;
-				var y = (td.getElementsByTagName("input")[1]).value;
-				var n = (td.getElementsByTagName("input")[2]).value;
-				var nbChiffres = (td.getElementsByTagName("input")[3]).value;
+				var x = document.getElementById('MZ_rX').value;
+				var y = document.getElementById('MZ_rY').value;
+				var n = document.getElementById('MZ_rN').value;
+				var nbChiffres = document.getElementById('MZ_rBP').value;
 				if(x==null || isNaN(parseInt(x)))
 				{
 					window.alert("Erreur : champ X mal formaté.");
@@ -967,10 +913,11 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 					return;
 				}
 				this.addOneRecherche(this.getIDCarte(), x, y, n, nbChiffres);
-				window.location.replace(window.location);
+				this.reinit();
 			}
 			catch(e)
 			{
+				console.log(e);
 				window.alert(e);
 			}
 		},
@@ -988,6 +935,7 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 			input.setAttribute('type','text');
 			input.setAttribute('maxlength',size==null?4:size);
 			input.setAttribute('size',size==null?4:size);
+			input.id = nom;
 			parent.appendChild(input);
 			return input;
 		},
@@ -1018,7 +966,7 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 
 			if(this.CAPITAN_getValue("capitan."+idCarte+".this.signe") == null)
 			{
-				var msg = document.getElementById("msgDiv").textContent;
+				var msg = document.getElementById("msgEffet").textContent;
 
 				// fonctionne à la fois pour "Tu es dans..." et "Vous êtes dans..."
 				if(!msg.match(/es dans le bon Xcoin/))
@@ -1032,10 +980,14 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 			var table = this.afficheInfoCarte(idCarte);
 
 			if (!table) return;
-			form = document.getElementsByTagName('FORM')[0];
 			var p = document.createElement('p');
 			p.appendChild(table);
-			form.appendChild(p);
+			let t = document.getElementsByTagName('TABLE');
+			if (t.length > 0) {
+				t[0].parentNode.insertBefore(p, t[0].nextSibling);
+			} else {
+				document.body.appendChild(p);
+			}
 		},
 
 		// return undefined if not found
@@ -1092,6 +1044,12 @@ if (oCAPITAN_MH_ROULE instanceof Object) {
 		},
 
 		CAPITAN_horsGM: false,
+
+		reinit: function() {
+			if (this.gDiv) this.gDiv.parentNode.removeChild(this.gDiv);
+			this.analyseObject();
+		},
+
 		init: function () {
 			this.CAPITAN_horsGM = false;
 			try {	// à partir du 11/07/2018, (GM_info === undefined) provoque une exception

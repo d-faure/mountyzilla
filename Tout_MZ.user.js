@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.77
+// @version     1.6.79
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.77';
+var MZ_latest = '1.6.79';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -831,57 +831,90 @@ function displayScriptTime(duree, texte) {
 }
 
 /** x~x Communication serveurs ----------------------------------------- */
-function FF_XMLHttpRequest(MY_XHR_Ob) {
-	let request = new XMLHttpRequest();
-	request.open(MY_XHR_Ob.method, MY_XHR_Ob.url);
-	for (let head in MY_XHR_Ob.headers) {
-		request.setRequestHeader(head, MY_XHR_Ob.headers[head]);
+class MZ_XMLHttpRequest {
+	// Gestion des requetes asynchrones:
+	// ajout de logique de cache et gestion d'erreurs
+	constructor(cacheKey = undefined) {
+		this.cacheKey = cacheKey;
+		this.cacheExpiration = 5; // expiration du cache après 5 minutes
+		return this;
 	}
-	request.onreadystatechange = function () {
-		if (request.readyState != 4) {
-			return;
-		}
-		if (request.error) {
-			if (MY_XHR_Ob.onerror) {
-				MY_XHR_Ob.onerror(request);
-			}
-			return;
-		}
-		if (request.status == 0) {
-			if (isDEV) {
-				let grandCadre = createOrGetGrandCadre();
-				let sousCadre = document.createElement('div');
-				sousCadre.innerHTML = 'AJAX status = 0, voir console';
-				sousCadre.style.width = 'auto';
-				sousCadre.style.fontSize = 'large';
-				sousCadre.style.border = 'solid 1px black';
-				grandCadre.appendChild(sousCadre);
-			}
-			if (MY_XHR_Ob.onerror) {
-				MY_XHR_Ob.onerror(request);
-			}
-			// showHttpsErrorContenuMixte();
-			return;
-		}
-		if (MY_XHR_Ob.onload) {
-			if (MY_XHR_Ob.trace) {
-				logMZ(`XMLHttp.onload ${MZ_formatDateMS()} début traitement retour AJAX ${MY_XHR_Ob.trace}`);
-			}
 
-			request.oXHR = MY_XHR_Ob;	// permet à la fonction onload de modifier le message de trace
-			MY_XHR_Ob.onload(request);
-			if (MY_XHR_Ob.trace) {
-				logMZ(`XMLHttp.onload ${MZ_formatDateMS()} fin traitement retour AJAX ${MY_XHR_Ob.trace}`);
-			}
+	_save(xmlHttpRequest) {
+		// sauvegarde de l'état de la requête pour le traitement ultérieur
+		if (!this.cacheKey || isDEV) return;  // pas de caching en mode dev
+		let respData = {
+			status: xmlHttpRequest.status,
+			statusText: xmlHttpRequest.statusText,
+			responseType: xmlHttpRequest.responseType,
+			responseText: xmlHttpRequest.responseText,
+			// response: xmlHttpRequest.response,  // gath': inutilisé
+		};
+		MY_setSessionValue(this.cacheKey, respData, this.cacheExpiration);
+	}
+
+	_load() {
+		// chargement de l'état de la requête sauvegardée
+		if (!this.cacheKey) return;
+		return MY_getSessionValue(this.cacheKey);
+	}
+
+	do(MY_XHR_Ob) {
+		let cachedResponse = this._load();
+		if (cachedResponse) {
+			MY_XHR_Ob.onload(cachedResponse);
+			if (MY_XHR_Ob.trace) logMZ(`XMLHttp.onload ${MZ_formatDateMS()} traitement AJAX (cache) ${MY_XHR_Ob.trace}`);
+			return;
 		}
-	};
-	if (MY_XHR_Ob.HTML) {
-		request.responseType = 'document';
+		this._do_req(MY_XHR_Ob);
 	}
-	request.send(MY_XHR_Ob.data);
-	if (MY_XHR_Ob.trace) {
-		logMZ(`XMLHttp.send ${MZ_formatDateMS()} envoi AJAX ${MY_XHR_Ob.trace}`);
+
+	_do_req(MY_XHR_Ob) {
+		let request = new XMLHttpRequest();
+		request.open(MY_XHR_Ob.method, MY_XHR_Ob.url);
+		for (let head in MY_XHR_Ob.headers) {
+			request.setRequestHeader(head, MY_XHR_Ob.headers[head]);
+		}
+		MY_XHR_Ob.cls = this;	// permet à la fonction onload de cacher la requête
+		request.onreadystatechange = function () {
+			if (request.readyState != 4) return;
+			if (request.error) {
+				if (MY_XHR_Ob.onerror) MY_XHR_Ob.onerror(request);
+				return;
+			}
+			if (request.status == 0) {
+				if (isDEV) {
+					let grandCadre = createOrGetGrandCadre();
+					let sousCadre = document.createElement('div');
+					sousCadre.innerHTML = 'AJAX status = 0, voir console';
+					sousCadre.style.width = 'auto';
+					sousCadre.style.fontSize = 'large';
+					sousCadre.style.border = 'solid 1px black';
+					grandCadre.appendChild(sousCadre);
+				}
+				if (MY_XHR_Ob.onerror) MY_XHR_Ob.onerror(request);
+				// showHttpsErrorContenuMixte();
+				return;
+			}
+			if (MY_XHR_Ob.onload) {
+				if (MY_XHR_Ob.trace) logMZ(`XMLHttp.onload ${MZ_formatDateMS()} début traitement retour AJAX ${MY_XHR_Ob.trace}`);
+
+				request.oXHR = MY_XHR_Ob;	// permet à la fonction onload de modifier le message de trace
+				MY_XHR_Ob.onload(request);
+				MY_XHR_Ob.cls._save(request);
+				if (MY_XHR_Ob.trace) logMZ(`XMLHttp.onload ${MZ_formatDateMS()} fin traitement retour AJAX ${MY_XHR_Ob.trace}`);
+			}
+		};
+		if (MY_XHR_Ob.HTML) request.responseType = 'document';
+		request.send(MY_XHR_Ob.data);
+		if (MY_XHR_Ob.trace) logMZ(`XMLHttp.send ${MZ_formatDateMS()} envoi AJAX ${MY_XHR_Ob.trace}`);
 	}
+}
+
+function FF_XMLHttpRequest(MY_XHR_Ob) {
+	// Fonction de compatibilité. Utiliser MZ_XMLHttpRequest à la place.
+	warnMZ('FF_XMLHttpRequest est obsolète, utilisez MZ_XMLHttpRequest à la place.');
+	new MZ_XMLHttpRequest().do(MY_XHR_Ob);
 }
 
 // rend une chaine affichant date et heure et milliseconds (maintenant si le paramètre est absent)
@@ -6223,52 +6256,62 @@ function traiteMonstre() {
 	}
 	g_idMonstre = m[1];
 	let tReq = [{ index: 1, id: Number(g_idMonstre), nom: g_nomMonstre }];	// "+" pour forcer du numérique
+	let cdmCallback = function (responseDetails) {
+		try {
+			// logMZ('retrieveCDMs readyState=' + responseDetails.readyState + ', error=' + responseDetails.error + ', status=' + responseDetails.status);
+			if (responseDetails.status == 0) {
+				return true;
+			}
+			// logMZ('[MZd] ' + (+new Date) + ' ajax niv monstres début');
+			texte = responseDetails.responseText;
+			let infosRet = JSON.parse(texte);
+			infosRet = infosRet.filter((cdm) => cdm.id == g_idMonstre)
+			if (infosRet.length == 0) {
+				return false;  // montre hors vue (cache), on force la requete serveur
+			}
+			let info = infosRet[0];
+			// QUESTION Quelle est l'utilité de ceci?
+			// Roule 19/01/2020 Il doit y avoir un endroit "au fond du trou" où le code va chercher les infos à partir de l'ID. Est-ce que c'est propre ? : non
+			MZ_EtatCdMs.listeCDM[g_idMonstre] = info;
+			let nodeInsert;
+			try {
+				nodeInsert = document.evaluate(
+					"//div[@class='view']//h3", document, null, 9, null
+				).singleNodeValue;
+			} catch (exc) {
+				logMZ('recherche node pour info CdM', exc);
+				return true;
+			}
+			let table = createCDMTable(g_idMonstre, g_nomMonstre, info);
+			table.align = 'center';
+			let tbody = table.childNodes[1];
+			let thead = table.childNodes[0];
+			let tdEntete = thead.firstChild.firstChild;
+			tdEntete.onclick = toggleTableau;
+			tdEntete.style.cursor = 'pointer';
+			thead.firstChild.style = 'mh_tdpage';
+			tbody.style.display = 'none';
+			table.style.width = '350px';
+			insertBefore(nodeInsert, table);
+			return true;
+		} catch (exc) {
+			logMZ('traiteMonstre onload', exc);
+			return true;
+		}
+	}
+	let cdmCached = new MZ_XMLHttpRequest(`MZ_${numTroll}_CDMv2?monstres`)._load() || new MZ_XMLHttpRequest(`MZ_${numTroll}_CDMv2`)._load();
+	if (cdmCached && cdmCallback(cdmCached)) {
+		// gath': si le monstre affiché vient de la vue,
+		// alors on peut utiliser les infos que l'on a déjà en cache
+		return;
+	}
 	FF_XMLHttpRequest({
 		method: 'POST',
 		url: URL_MZgetCaracMonstre,
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		data: `l=${JSON.stringify(tReq)}`,
 		trace: 'demande niveaux monstres V2, MonsterView',
-		onload: function (responseDetails) {
-			try {
-				// logMZ('retrieveCDMs readyState=' + responseDetails.readyState + ', error=' + responseDetails.error + ', status=' + responseDetails.status);
-				if (responseDetails.status == 0) {
-					return;
-				}
-				// logMZ('[MZd] ' + (+new Date) + ' ajax niv monstres début');
-				texte = responseDetails.responseText;
-				let infosRet = JSON.parse(texte);
-				if (infosRet.length == 0) {
-					return;
-				}
-				let info = infosRet[0];
-				// QUESTION Quelle est l'utilité de ceci?
-				// Roule 19/01/2020 Il doit y avoir un endroit "au fond du trou" où le code va chercher les infos à partir de l'ID. Est-ce que c'est propre ? : non
-				MZ_EtatCdMs.listeCDM[g_idMonstre] = info;
-				let nodeInsert;
-				try {
-					nodeInsert = document.evaluate(
-						"//div[@class='view']//h3", document, null, 9, null
-					).singleNodeValue;
-				} catch (exc) {
-					logMZ('recherche node pour info CdM', exc);
-					return;
-				}
-				let table = createCDMTable(g_idMonstre, g_nomMonstre, info);
-				table.align = 'center';
-				let tbody = table.childNodes[1];
-				let thead = table.childNodes[0];
-				let tdEntete = thead.firstChild.firstChild;
-				tdEntete.onclick = toggleTableau;
-				tdEntete.style.cursor = 'pointer';
-				thead.firstChild.style = 'mh_tdpage';
-				tbody.style.display = 'none';
-				table.style.width = '350px';
-				insertBefore(nodeInsert, table);
-			} catch (exc) {
-				logMZ('traiteMonstre onload', exc);
-			}
-		},
+		onload: cdmCallback,
 	});
 }
 
@@ -6849,7 +6892,8 @@ class MZ_cSCIZ {
 
 		// Check the list against the SCIZ bestiaire
 		let sciz_url = 'https://www.sciz.fr/api/bestiaire/check';
-		if (mobs.length > 0) FF_XMLHttpRequest({
+		if (mobs.length > 0) new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_bestiaire${window.location.search}`).do({
+			trace: "SCIZ-bestiaire",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -6919,7 +6963,8 @@ class MZ_cSCIZ {
 
 		// Call SCIZ
 		let sciz_url = 'https://www.sciz.fr/api/hook/trolls';
-		FF_XMLHttpRequest({
+		new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_trolls`).do({
+			trace: "SCIZ-trolls",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -7000,7 +7045,8 @@ class MZ_cSCIZ {
 
 		// Call SCIZ
 		let sciz_url = 'https://www.sciz.fr/api/hook/treasures';
-		if (ids.length > 0) FF_XMLHttpRequest({
+		if (ids.length > 0) new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_treasures`).do({
+			trace: "SCIZ-treasures",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -7079,7 +7125,8 @@ class MZ_cSCIZ {
 
 		// Call SCIZ
 		let sciz_url = 'https://www.sciz.fr/api/hook/mushrooms';
-		if (ids.length > 0) FF_XMLHttpRequest({
+		if (ids.length > 0) new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_mushrooms`).do({
+			trace: "SCIZ-mushrooms",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -7152,7 +7199,8 @@ class MZ_cSCIZ {
 		// Call SCIZ
 		let oPosTroll = MZ_cVueJSON.oPosTroll;
 		let sciz_url = 'https://www.sciz.fr/api/hook/traps';
-		FF_XMLHttpRequest({
+		new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_traps`).do({
+			trace: "SCIZ-traps",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -7224,7 +7272,8 @@ class MZ_cSCIZ {
 
 		// Call SCIZ
 		let sciz_url = 'https://www.sciz.fr/api/hook/portals';
-		if (ids.length > 0) FF_XMLHttpRequest({
+		if (ids.length > 0) new MZ_XMLHttpRequest(`MZ_${numTroll}_SCIZ_portals`).do({
+			trace: "SCIZ-portals",
 			method: 'POST',
 			url: sciz_url,
 			headers: { 'Authorization': MZ_cSCIZ.jwt, 'Content-Type': 'application/json' },
@@ -7690,13 +7739,17 @@ function changeButtonValidate() {
 
 function do_move() {
 	debugMZ('do_move_log');
+	// expiration cache vue
+	MY_removeSessionValue(`MZ_${numTroll}_CDMv2`);
+	MY_removeSessionValue(`MZ_${numTroll}_CDMv2?monstres`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_bestiaire`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_bestiaire?monstres`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_treasures`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_mushrooms`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_traps`);
+	MY_removeSessionValue(`MZ_${numTroll}_SCIZ_portals`);
 	// Roule', vérification du risque de tomber dans un trou déplacée dans do_lieuTeleport pour le cas des TP
-	// if(isPage('MH_Play/Play_a_Move.php')) {
 	changeValidation();
-	// }
-	// else if(isPage('MH_Lieux/Lieu_Teleport.php')) {
-	//	changeButtonValidate();
-	// }
 }
 
 /** x~x News ----------------------------------------------------------- */
@@ -9747,10 +9800,10 @@ function visuMobileTableaux() {
 	if (isDesktopView()) return;
 
 	let numTroll = MY_getValue('NUM_TROLL');
-	let tables = ['Parchemin', 'Potion', 'Spécial'];
+	let tables = ['Composant', 'Parchemin', 'Potion', 'Spécial'];
 	for (let section of tables) {
 		$(`#part2toggle_${numTroll}_${section}`).find('th:last-child, td:last-child').remove()
-		if (section == 'Spécial') continue;  // détails peu intéressant ici
+		if (section == 'Composant' || section == 'Spécial') continue;  // détails peu intéressant ici
 		let thDetail = document.querySelector(`#part2toggle_${numTroll}_${section}>table>thead>tr>th:nth-child(4)`);
 		thDetail.style = 'min-width: 185px;';
 	}
@@ -10405,7 +10458,10 @@ function MZ_analyseCdM(idHTMLCdM, bIgnoreEltAbsent) {	// rend un contexte
 				replaceContentByText(this.parentNode.firstChild, texte);
 			}
 		}
-		FF_XMLHttpRequest({
+
+		MY_removeSessionValue(`MZ_${numTroll}_CDMv2`);
+		MY_removeSessionValue(`MZ_${numTroll}_CDMv2?monstres`);
+		new MZ_XMLHttpRequest().do({
 			method: 'POST',
 			url: URL_pageDispatcherV2,
 			data: `cdm_json=${encodeURIComponent(JSON.stringify(oRet.oData))}`,
@@ -10550,7 +10606,7 @@ function sendCDM() {
 		}
 	}
 
-	FF_XMLHttpRequest({
+	new MZ_XMLHttpRequest().do({
 		method: 'POST',
 		url: URL_pageDispatcherV2,
 		data: `cdm_json=${encodeURIComponent(JSON.stringify(oData))}`,
@@ -12254,7 +12310,6 @@ class MZ_cVueJSON {
 		eltNav.insertBefore(this.eltDivShowFiltre, null);
 
 		this.eltParamFiltreRestr = document.createElement('div');
-		//this.eltParamFiltreRestr.id = `dlo_${this.nomBase}`
 		if (this.cLigneClass.nomsFiltres) {
 			let imgDone = false;
 			for (let nomfiltre in this.cLigneClass.nomsFiltres) {
@@ -12886,7 +12941,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 		debugMZ(`Envoi MZ ${nbReq} IDs, nbMonstres=${nbMonstre}, lastIndexDone=${MZ_cLigneMonstre.lastIndexSent}`);
 		if (nbReq == 0) return;
 
-		FF_XMLHttpRequest({
+		new MZ_XMLHttpRequest(`MZ_${numTroll}_CDMv2${window.location.search}`).do({
 			method: 'POST',
 			url: URL_MZgetCaracMonstre,
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -12926,7 +12981,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 			texte = responseDetails.responseText;
 			let infos = JSON.parse(texte);
 			//displayScriptTime(new Date().getTime() - date_debut.getTime(), 'Analyse des CdM MZ');
-			responseDetails.oXHR.trace = `${infos.length} demandes niveaux monstres V2`;
+			if (responseDetails.oXHR) responseDetails.oXHR.trace = `${infos.length} demandes niveaux monstres V2`;
 			if (infos.length == 0) { return; }
 
 			// ajouter les styles CSS pour les popup
@@ -12956,6 +13011,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 				}
 			}
 
+			let styleImg = "height:12px;width:auto;"
 			for (let info of infos) {
 				if (info.index == undefined) continue;
 				let oMonstre = MZ_cLigneMonstre.MZ_oVueJSON.objets[info.index];
@@ -12988,9 +13044,11 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 
 				// icône "voir le caché"
 				if (info.vlc) {
-					oMonstre.eltTdNom.appendChild(createImage(`${URL_MZimg}oeil.png`, "Voit le caché"));
+					oMonstre.eltTdNom.appendChild(createImage(`${URL_MZimg}oeil.png`, "Voit le caché", styleImg));
 				}
-
+				if (info.attd) {
+					oMonstre.eltTdNom.appendChild(createImage(`${URL_MZimg}distance.gif`, "Attaque à distance", styleImg));
+				}
 				// précision sur les phoenix
 				if (info.gen) {
 					let imgPh, txtPh;
@@ -13012,9 +13070,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 							txtPh = 'Phœnix de deuxième ou troisième génération';
 							break;
 					}
-					let img = oMonstre.eltTdNom.appendChild(createImage(imgPh, txtPh));
-					img.style.height = '15px';
-					img.style.width = 'auto';
+					oMonstre.eltTdNom.appendChild(createImage(imgPh, txtPh, styleImg));
 				}
 
 				// missions
@@ -13138,7 +13194,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 						//mess = `${mess}Mission ${num} :\n${oMission.libelle}`;
 						oMonstre.eltTdNom.appendChild(createImage(
 							`${URL_MZimg}mission.png`,
-							`Mission ${num} :\n${oMission.libelle}`));
+							`Mission ${num} :\n${oMission.libelle}`, styleImg));
 						oMonstre.cibleMission = true;
 					} else if (mobMissionPeutEtre !== undefined) {
 						/*
@@ -13149,7 +13205,7 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 						*/
 						oMonstre.eltTdNom.appendChild(createImage(
 							`${URL_MZimg}missionX.png`,
-							`Mission ${num} :\n${oMission.libelle}\n${mobMissionPeutEtre}`));
+							`Mission ${num} :\n${oMission.libelle}\n${mobMissionPeutEtre}`, styleImg));
 						oMonstre.cibleMission = true;
 					}
 				}
@@ -13299,19 +13355,12 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 			data.push(extClef);
 			if (data[0] != 'bricol') { continue; }
 
-			let btData = MY_getSessionValue(`MZ_${numTroll}_bricolTroll${data[5]}`);
-			if (btData) {
-				MZ_cLigneTroll.receptionBricolTrollAJAX(data)(btData);
-				debugMZ(`${MZ_formatDateMS()} données de cache pour bricolTroll ${data[1]}`);
-				continue;
-			}
-			FF_XMLHttpRequest({
+			new MZ_XMLHttpRequest(`MZ_${numTroll}_bricolTroll${data[5]}`).do({
 				method: 'GET',
 				url: `${URL_bricol + data[1]}/mz_json.php?login=${encodeURIComponent(data[2])}&password=${data[3]}`,
 				trace: `bricolTroll ${data[1]}`,
 				onload: MZ_cLigneTroll.receptionBricolTrollAJAX(data),
 			});
-			debugMZ(`${MZ_formatDateMS()} requête ajax partie pour bricolTroll ${data[1]}`);
 		}
 
 		initPXTroll();
@@ -13478,17 +13527,11 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 	static receptionBricolTrollAJAX(data) {
 		return function (responseDetails) {
 			let btData;
-			try {
-				if (responseDetails.status == 0) { return; }
-				btData = JSON.parse(responseDetails.responseText);
-				if (btData.error) {
-					avertissement(`Bricol'Troll (${data[1]}) a répondu :<br />${btData.error}`);
-					return;
-				}
-				MY_setSessionValue(`MZ_${numTroll}_bricolTroll${data[5]}`, btData, 3);
-			} catch {
-				// si on est pas en XMLHttpRequest, alors ca vient du cache
-				btData = responseDetails;
+			if (responseDetails.status == 0) { return; }
+			btData = JSON.parse(responseDetails.responseText);
+			if (btData.error) {
+				avertissement(`Bricol'Troll (${data[1]}) a répondu :<br />${btData.error}`);
+				return;
 			}
 
 			if (data[4] > 0) {  // afficher les trolls hors-vue
@@ -13724,37 +13767,24 @@ class MZ_cLieuxBT {
 		let locType = MY_getValue(`${numTroll}.BT.nearestLocation`);
 		if (locType == undefined || locType == 'none') { return; }
 
-		let btData = MY_getSessionValue(`MZ_${numTroll}_BT_nearestLocation`);
-		if (btData) {
-			MZ_cLieuxBT.receptionLieuxAJAX()(btData);
-			debugMZ(`${MZ_formatDateMS()} données de cache pour bricolTroll (lieux)`);
-			return;
-		}
 		let oPosTroll = MZ_cVueJSON.oPosTroll;
 		let urlBricol = `${URL_bricol_mountyhall}lieux.php?search=position&format=json&orderBy=distance&posx=${oPosTroll.x}&posy=${oPosTroll.y}&posn=${oPosTroll.n}&typeLieu=${locType}`;
-		FF_XMLHttpRequest({
+		new MZ_XMLHttpRequest(`MZ_${numTroll}_BT_nearestLocation`).do({
 			method: 'GET',
 			url: urlBricol,
 			trace: `bricolTroll (lieux)`,
 			onload: MZ_cLieuxBT.receptionLieuxAJAX(),
 		});
-		debugMZ(`${MZ_formatDateMS()} requête ajax partie pour bricolTroll (lieux)`);
 	}
 
 	static receptionLieuxAJAX() {
 		return function (responseDetails) {
 			let btData;
-			try {
-				if (responseDetails.status == 0) { return; }
-				btData = JSON.parse(responseDetails.responseText);
-				if (btData.error) {
-					avertissement(`Bricol'Troll (lieux) a répondu :<br />${btData.error}`);
-					return;
-				}
-				MY_setSessionValue(`MZ_${numTroll}_BT_nearestLocation`, btData, 3);
-			} catch {
-				// si on est pas en XMLHttpRequest, alors ca vient du cache
-				btData = responseDetails;
+			if (responseDetails.status == 0) { return; }
+			btData = JSON.parse(responseDetails.responseText);
+			if (btData.error) {
+				avertissement(`Bricol'Troll (lieux) a répondu :<br />${btData.error}`);
+				return;
 			}
 
 			if (btData.data.lieux.length == 0) {
@@ -16881,13 +16911,11 @@ try {
 		do_news();
 	} else if (isPage("MH_Play/Play_evenement")) {
 		MZ_cSCIZ.init()._overwriteEvents()
-	} else if (isPageWithParam({ url: 'MH_Play/Play_a_Action', params: { type: 'C', id: 12 } })) {
-		do_move();
-	} else if (isPageWithParam({ url: 'MH_Play/Play_a_Action', params: { type: 'A', id: 1 } })) {
+	} else if (isPageWithParam({ url: 'MH_Play/Play_a_Action', params: { type: 'C', id: 12 } }) || isPageWithParam({ url: 'MH_Play/Play_a_Action', params: { type: 'A', id: 1 } })) {
 		do_move();
 	} else if (isPage("View/MonsterView")) {
-		do_infomonstre();
 		MZ_cSCIZ.init()._overwriteEvents()
+		do_infomonstre();
 	} else if (isPage("MH_Play/Play_e_follo.php")) {
 		do_listegowap();
 	} else if (isPage("MH_Lieux/Lieu_Description.php")) {
