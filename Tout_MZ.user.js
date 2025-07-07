@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.80
+// @version     1.6.81
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.80';
+var MZ_latest = '1.6.81';
 var MZ_changeLog = [
 	"V1.6.x \t\t 23/12/2024",
 	"	- Adapations nouvelle vue",
@@ -3806,138 +3806,77 @@ function analyseTactique(donneesMonstre, nom) {
 
 		debugMZ(`analyseTactique nom=${nom} ${JSON.stringify(donneesMonstre)}`);
 		let coeffSeuil = 0.95;
-		if (donneesMonstre.index == undefined) {
-			// à supprimer
-			let td = document.createElement('td');
-			td.innerHTML = bbcode(donneesMonstre[4]); // sans déconner ? C'est quoi cette histoire ?
-			esqM = 0;
-			try {
-				esqM = Math.ceil(td.getElementsByTagName('b')[0].firstChild.nodeValue);
-			} catch (exc) {
-				debugMZ(`analyseTactique, exception calcul esqM`, exc);
-				esqM = Math.ceil(parseInt(td.firstChild.nodeValue));
+		// calcul de modificateurEsquive, modificateurArmure, modificateurMagie, modificateurEsquiveM, modificateurArmureM, pasDeSR, esqM, attM, armM_mag, armM_tot, degM;
+		if (donneesMonstre.esq) {
+			if (donneesMonstre.esq.min && donneesMonstre.esq.max) {
+				esqM = Math.ceil((donneesMonstre.esq.min + donneesMonstre.esq.max) / 2);
+			} else if (donneesMonstre.esq.max) {
+				esqM = donneesMonstre.esq.max;
 				modificateurEsquive = '<';
 				modificateurArmure = '<';
 				modificateurMagie = '<';
 			}
+		}
 
-			td.innerHTML = bbcode(donneesMonstre[3]);
-			attM = 0;
-			try {
-				attM = Math.ceil(td.getElementsByTagName('b')[0].firstChild.nodeValue);
-			} catch (exc) {
-				debugMZ(`analyseTactique, exeception calcul attM`, exc);
-				attM = Math.ceil(parseInt(td.firstChild.nodeValue));
+		if (donneesMonstre.att) {
+			if (donneesMonstre.att.min && donneesMonstre.att.max) {
+				attM = Math.ceil((donneesMonstre.att.min + donneesMonstre.att.max) / 2);
+			} else if (donneesMonstre.att.max) {
+				attM = donneesMonstre.att.max;
 				modificateurEsquiveM = '>';
 				modificateurArmureM = '>';
 			}
+		}
 
-			td.innerHTML = bbcode(donneesMonstre[5]);
-			degM = 0;
-			try {
-				degM = Math.ceil(td.getElementsByTagName('b')[0].firstChild.nodeValue);
-			} catch (exc) {
-				debugMZ(`analyseTactique, exeception calcul degM`, exc);
-				degM = Math.ceil(parseInt(td.firstChild.nodeValue));
-				modificateurArmureM = '>';
+		if (donneesMonstre.armM) {
+			if (donneesMonstre.armM.min && donneesMonstre.armM.max) {
+				armM_mag = Math.ceil((donneesMonstre.armM.min + donneesMonstre.armM.max) / 2);
+			} else if (donneesMonstre.armM.max) {
+				armM_mag = donneesMonstre.armM.max;
+				modificateurArmure = '<';
 			}
-
-			td.innerHTML = bbcode(donneesMonstre[7]);
-			try {
-				armM_tot = Math.ceil(td.getElementsByTagName('b')[0].firstChild.nodeValue);
-				armM_mag = armM_tot;	// compatibilité avec ancien calcul
-			} catch (exc) {
-				debugMZ(`analyseTactique, exeception calcul armM`, exc);
-				armM_tot = Math.ceil(parseInt(td.firstChild.nodeValue));
+			if (donneesMonstre.armP) {
+				if (donneesMonstre.armP.min && donneesMonstre.armP.max) {
+					armM_phy = Math.ceil((donneesMonstre.armP.min + donneesMonstre.armP.max) / 2);
+				} else if (donneesMonstre.armP.max) {
+					armM_phy = donneesMonstre.armP.max;
+					modificateurArmure = '<';
+				}
+				armM_tot = armM_mag + armM_phy;
+			} else {	// ça ne devrait pas arriver
+				armM_tot = armM_mag;
+			}
+		} else if (donneesMonstre.arm) {
+			if (donneesMonstre.arm.min && donneesMonstre.arm.max) {
+				armM_tot = Math.ceil((donneesMonstre.arm.min + donneesMonstre.arm.max) / 2);
+				armM_mag = armM_tot;	// worst case
+			} else if (donneesMonstre.arm.max) {
+				armM_tot = donneesMonstre.arm.max;
 				armM_mag = armM_tot;
 				modificateurArmure = '<';
 			}
+		}
 
-			try {
-				td.innerHTML = bbcode(donneesMonstre[9]);
-				// debugMZ('analyseTactique, calcul SR, donnessMonstre=' + donneesMonstre[9] + ', bbcode=' + bbcode(donneesMonstre[9]));
-				let rm = parseInt(td.getElementsByTagName('b')[0].firstChild.nodeValue);
-				let v = rm / mm;
-				let seuil = rm < mm ? Math.max(10, Math.floor(v * 50)) : Math.min(90, Math.floor(100 - 50 / v));
+		if (donneesMonstre.deg) {
+			if (donneesMonstre.deg.min && donneesMonstre.deg.max) {
+				degM = Math.ceil((donneesMonstre.deg.min + donneesMonstre.deg.max) / 2);
+			} else if (donneesMonstre.deg.max) {
+				degM = donneesMonstre.deg.max;
+				modificateurArmureM = '>';
+			}
+		}
+
+		if (donneesMonstre.RM) {
+			if (donneesMonstre.RM.min && donneesMonstre.RM.max) {
+				let rmM = Math.ceil((donneesMonstre.RM.min + donneesMonstre.RM.max) / 2);
+				let v = rmM / mm;
+				let seuil = rmM < mm ? Math.max(10, Math.floor(v * 50)) : Math.min(90, Math.floor(100 - 50 / v));
 				coeffSeuil = (200 - seuil) / 200;
-			} catch (exc) {
-				debugMZ(`analyseTactique, exeception calcul SR`, exc);
-				modificateurMagie = '<';
-				pasDeSR = true;
+			} else if (donneesMonstre.deg.max) {
+				// gath: vide ici, rien a faire ?
 			}
-		} else {
-			// calcul de modificateurEsquive, modificateurArmure, modificateurMagie, modificateurEsquiveM, modificateurArmureM, pasDeSR, esqM, attM, armM_mag, armM_tot, degM;
-			if (donneesMonstre.esq) {
-				if (donneesMonstre.esq.min && donneesMonstre.esq.max) {
-					esqM = Math.ceil((donneesMonstre.esq.min + donneesMonstre.esq.max) / 2);
-				} else if (donneesMonstre.esq.max) {
-					esqM = donneesMonstre.esq.max;
-					modificateurEsquive = '<';
-					modificateurArmure = '<';
-					modificateurMagie = '<';
-				}
-			}
-
-			if (donneesMonstre.att) {
-				if (donneesMonstre.att.min && donneesMonstre.att.max) {
-					attM = Math.ceil((donneesMonstre.att.min + donneesMonstre.att.max) / 2);
-				} else if (donneesMonstre.att.max) {
-					attM = donneesMonstre.att.max;
-					modificateurEsquiveM = '>';
-					modificateurArmureM = '>';
-				}
-			}
-
-			if (donneesMonstre.armM) {
-				if (donneesMonstre.armM.min && donneesMonstre.armM.max) {
-					armM_mag = Math.ceil((donneesMonstre.armM.min + donneesMonstre.armM.max) / 2);
-				} else if (donneesMonstre.armM.max) {
-					armM_mag = donneesMonstre.armM.max;
-					modificateurArmure = '<';
-				}
-				if (donneesMonstre.armP) {
-					if (donneesMonstre.armP.min && donneesMonstre.armP.max) {
-						armM_phy = Math.ceil((donneesMonstre.armP.min + donneesMonstre.armP.max) / 2);
-					} else if (donneesMonstre.armP.max) {
-						armM_phy = donneesMonstre.armP.max;
-						modificateurArmure = '<';
-					}
-					armM_tot = armM_mag + armM_phy;
-				} else {	// ça ne devrait pas arriver
-					armM_tot = armM_mag;
-				}
-			} else if (donneesMonstre.arm) {
-				if (donneesMonstre.arm.min && donneesMonstre.arm.max) {
-					armM_tot = Math.ceil((donneesMonstre.arm.min + donneesMonstre.arm.max) / 2);
-					armM_mag = armM_tot;	// worst case
-				} else if (donneesMonstre.arm.max) {
-					armM_tot = donneesMonstre.arm.max;
-					armM_mag = armM_tot;
-					modificateurArmure = '<';
-				}
-			}
-
-			if (donneesMonstre.deg) {
-				if (donneesMonstre.deg.min && donneesMonstre.deg.max) {
-					degM = Math.ceil((donneesMonstre.deg.min + donneesMonstre.deg.max) / 2);
-				} else if (donneesMonstre.deg.max) {
-					degM = donneesMonstre.deg.max;
-					modificateurArmureM = '>';
-				}
-			}
-
-			if (donneesMonstre.RM) {
-				if (donneesMonstre.RM.min && donneesMonstre.RM.max) {
-					let rmM = Math.ceil((donneesMonstre.RM.min + donneesMonstre.RM.max) / 2);
-					let v = rmM / mm;
-					let seuil = rmM < mm ? Math.max(10, Math.floor(v * 50)) : Math.min(90, Math.floor(100 - 50 / v));
-					coeffSeuil = (200 - seuil) / 200;
-				} else if (donneesMonstre.deg.max) {
-					// gath: vide ici, rien a faire ?
-				}
-				modificateurMagie = '<';
-				pasDeSR = true;
-			}
+			modificateurMagie = '<';
+			pasDeSR = true;
 		}
 		debugMZ(`modificateurEsquive=${modificateurEsquive}, modificateurArmure=${modificateurArmure}, modificateurMagie=${modificateurMagie}, modificateurEsquiveM=${modificateurEsquiveM}, modificateurArmureM=${modificateurArmureM}, pasDeSR=${pasDeSR}, esqM=${esqM}, attM=${attM}, armM_tot=${armM_tot}, armM_mag=${armM_mag}, degM=${degM}, coeffSeuil=${coeffSeuil}`);
 
@@ -6729,8 +6668,10 @@ class MZ_cSCIZ {
 		let xPathEvents = document.evaluate(xPathQuery, document, null, 0, null);
 		let xPathEvent;
 		while (xPathEvent = xPathEvents.iterateNext()) {
+			let time = Date.parse(StringToDate(xPathEvent.children[0].innerHTML));
+			if (isNaN(time)) continue;
 			MZ_cSCIZ.events.push({
-				time: Date.parse(StringToDate(xPathEvent.children[0].innerHTML)),
+				time: time,
 				type: xPathEvent.children[1].innerHTML,
 				desc: xPathEvent.children[2].innerHTML,
 				sciz_type: null,
@@ -12166,6 +12107,7 @@ class MZ_cVueJSON {
 
 		// balayer le json_xxxx et créer nos objets par ligne
 		this.objets = [];
+		this.map_id_objets = {}; // k,v: id, index array objets
 		for (let idx = 0; idx < this.MH_json.length; idx++) {
 			let oMH_JSON = this.MH_json[idx];
 			let oLigne;
@@ -12176,6 +12118,7 @@ class MZ_cVueJSON {
 				let idMH = parseInt(oMH_JSON.value.id);
 				oLigne.init(this, idMH, eTr);
 				this.objets.push(oLigne);
+				this.map_id_objets[idMH] = idx;
 			}
 		}
 
@@ -13016,8 +12959,9 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 
 			let styleImg = "height:12px;width:auto;"
 			for (let info of infos) {
-				if (info.index == undefined) continue;
-				let oMonstre = MZ_cLigneMonstre.MZ_oVueJSON.objets[info.index];
+				let mzIndex = MZ_cLigneMonstre.MZ_oVueJSON.map_id_objets[info.id];
+				if (mzIndex === undefined) continue;
+				let oMonstre = MZ_cLigneMonstre.MZ_oVueJSON.objets[mzIndex];
 				if (!oMonstre) continue;
 				oMonstre.infoMZ = info;
 				let className = 'mh_tdpage';
@@ -13027,14 +12971,14 @@ class MZ_cLigneMonstre extends MZ_cLigneVue {
 					oMonstre.eltTdNiveau.style.color = "black";
 					oMonstre.eltTdNiveau.innerHTML = 'Var.<span class="MZtooltiptext">Ce monstre est variable.<br />On ne peut pas avoir d\'information sans CdM.</span>';
 				} else if (!(info && info.esq)) {
-					// debugMZ("pas d'esquive id=" + info.id + ", index=" + info.index);
 					oMonstre.eltTdNiveau.className = "MZtooltip";
 					oMonstre.eltTdNiveau.innerHTML = `${mkMinMaxHTML(info.niv)}<span class="MZtooltiptext">Désolé, pas de CdM dans MZ pour ce type de monstre (même âge, même template).<br />Vous pouvez aider en envoyant une CdM à MZ.</span>`;
 				} else {
 					oMonstre.eltTdNiveau.innerHTML = mkMinMaxHTML(info.niv);
 					myColor = MZ_CdMColorFromMode(info);
 					oMonstre.eltTdNiveau.style.cursor = 'pointer';
-					oMonstre.eltTdNiveau.setAttribute('data-indxMZ', info.index);
+					console.warn('mzIndex', mzIndex, info.id);
+					oMonstre.eltTdNiveau.setAttribute('data-indxMZ', mzIndex);
 					oMonstre.eltTdNiveau.onclick = basculeCDM2;
 					oMonstre.eltTdNom.appendChild(MZ_Tactique.createImage(oMonstre.id, oMonstre.nom));
 				}
