@@ -10,7 +10,7 @@
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mhp.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.6.90
+// @version     1.6.91
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -36,7 +36,7 @@
 *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *******************************************************************************/
 
-var MZ_latest = '1.6.90';
+var MZ_latest = '1.6.91';
 var MZ_changeLog = [
 	"V1.6.86 \t\t 21/07/2025",
 	"	- Vue : possibilité de regrouper Gowaps & Gnus",
@@ -7373,13 +7373,9 @@ class MZ_cSCIZ {
 		});
 	}
 
-	static processTrolls() {
-		if (MZ_cSCIZ.jwt == '') return;
-
-		let cbx = MY_getValue(`${numTroll}.SCIZ_CB_VIEW_TROLLS`);
-		if (cbx === '0') return;
-		// Retrieve trolls
-		MZ_cSCIZ.trolls = [];  // reset view
+	static getVisibleTrolls() {
+		// Retrieve trolls from MH view
+		MZ_cSCIZ.trolls = [];  // reset SCIZ view
 		// Read if switch to SCIZ view or not
 		let bViewSCIZ = MY_getValue('SCIZ_SHOW_TROLLS') == 'no';
 		for (let oLigne of MZ_cVueJSON.oTrolls.objets) {
@@ -7388,10 +7384,19 @@ class MZ_cSCIZ {
 				name: oLigne.eltTdNom.innerHTML,
 				sciz_desc: null,
 				nodeNom: oLigne.eltTdNom,
+				guilde: oLigne.eltTdGuilde.innerHTML,
+				nodeGuilde: oLigne.eltTdGuilde,
 				displayed: bViewSCIZ,
 				caracs: null,
 			});
 		}
+	}
+
+	static processTrolls() {
+		if (MZ_cSCIZ.jwt == '') return;
+
+		let cbx = MY_getValue(`${numTroll}.SCIZ_CB_VIEW_TROLLS`);
+		if (cbx === '0') return;
 
 		// Call SCIZ
 		let sciz_url = 'https://www.sciz.fr/api/hook/trolls';
@@ -7412,11 +7417,15 @@ class MZ_cSCIZ {
 						return;
 					}
 					// Look for trolls to enhance
+					MZ_cSCIZ.getVisibleTrolls();
 					trolls.trolls.forEach((t) => {
 						for (let oTrollSCIZ of MZ_cSCIZ.trolls) {
 							if (oTrollSCIZ.id !== t.id) continue;
 							oTrollSCIZ.sciz_desc = oTrollSCIZ.nodeNom.innerHTML + MZ_cSCIZ._printTroll(t);  // PrettyPrint
 							oTrollSCIZ.caracs = t.caracs;  // Store caracs
+							if (oTrollSCIZ.guilde == "" && t.guilde_id && t.guilde_nom) {
+								oTrollSCIZ.nodeGuilde.innerHTML = `<a href="javascript:PVG(${t.guilde_id})">${t.guilde_nom}</a>`;
+							}
 							return;  // break foreach
 						}
 						// ajout de ligne dans le bloc Trolls
@@ -13045,6 +13054,10 @@ class MZ_cLigneVue {
 		let idx, oOther, found;
 		for ([idx, oOther] of oNouvelleLigne.constructor.MZ_oVueJSON.objets.entries()) {
 			//logMZ(JSON.stringify(oOther));
+			if (oOther.id == id) {
+				warnMZ(`addLigne_log ajout d'une ligne préexistante, ça ne devrait pas arriver ${id} ${nom}`);
+				return false;
+			}
 			oOther.loadDist();
 			if (oOther.dist < oNouvelleLigne.dist) continue;
 			if (oOther.dist > oNouvelleLigne.dist) {found = true; break;}
@@ -13725,6 +13738,7 @@ class MZ_cLigneTroll extends MZ_cLigneVue {
 		a.appendChild(document.createTextNode(nom));
 		oNouvelleLigne.eltTdNom.appendChild(a);
 		oNouvelleLigne.eltTdGuilde = document.createElement('td');
+		oNouvelleLigne.eltTdGuilde.className = 'col-auto-mask';
 		if (guildeNom !== undefined) {
 			if (guildeId) {
 				a = document.createElement('a');
